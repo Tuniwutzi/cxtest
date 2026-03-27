@@ -1,5 +1,6 @@
 #pragma once
 
+#include <charconv>
 #include <format>
 #include <meta>
 #include <ranges>
@@ -33,22 +34,42 @@ struct CompiletimeTestResult
 
 class TestContext
 {
+private:
+    static constexpr std::string default_message(std::source_location loc = std::source_location::current())
+    {
+        std::string line;
+        std::to_chars_result result;
+        do
+        {
+            line.resize(line.size() + 32);
+            result = std::to_chars(line.data(), line.data() + line.size(), loc.line());
+        } while (result.ec == std::errc::value_too_large);
+
+        if (result.ec != std::errc{})
+        {
+            throw std::runtime_error{"Could not stringify line number"};
+        }
+        line.resize(result.ptr - line.data());
+
+        return std::string{"Assertion failed at "} + loc.file_name() + ":" + line;
+    }
+
 public:
     virtual ~TestContext() = default;
 
-    constexpr void check(bool condition) noexcept
+    constexpr void check(bool condition, std::string message = default_message()) noexcept
     {
         if (!condition)
         {
-            result.errors.push_back("Error!");
+            result.errors.push_back(std::move(message));
         }
     }
-    constexpr void require(bool condition)
+    constexpr void require(bool condition, std::string message = default_message())
     {
         if (!condition)
         {
-            result.errors.push_back("Error!");
-            throw detail::RequireFailed{"Error!"};
+            result.errors.push_back(message);
+            throw detail::RequireFailed{std::move(message)};
         }
     }
 
