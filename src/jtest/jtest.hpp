@@ -5,6 +5,7 @@
 #include <ranges>
 #include <stdexcept>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace jtest
@@ -263,8 +264,6 @@ namespace results
 {
 struct Test
 {
-    std::string_view test_name;
-
     // TODO: this is bad, organize this differently
     std::optional<detail::CompiletimeTestResult> ct_result;
     std::optional<detail::TestResult> rt_result;
@@ -272,13 +271,12 @@ struct Test
 
 struct Group
 {
-    std::string name;
-    std::vector<Test> test_results;
+    std::unordered_multimap<std::string, Test> test_results;
 };
 
 struct Run
 {
-    std::vector<Group> group_results;
+    std::unordered_multimap<std::string, Group> group_results;
 };
 
 } // namespace results

@@ -84,8 +84,9 @@ void test_valid()
     jtest::TestGroup<^^valid> valid_group{jtest::skip_registration};
     auto results = jtest::run_group(valid_group);
     CHECK(results.test_results.size() == 10, "Unexpected number of tests ran");
-    for (const auto& [name, ct, rt] : results.test_results)
+    for (const auto& [name, result] : results.test_results)
     {
+        const auto& [ct, rt] = result;
         if (name == "cx_both")
         {
             CHECK(ct && rt, "cx_both should run compiletime and runtime tests");
