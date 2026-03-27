@@ -15,9 +15,8 @@ namespace jtest
 namespace detail
 {
 
-struct RequireFailed : std::runtime_error
+struct RequireFailed
 {
-    using std::runtime_error::runtime_error;
 };
 
 struct TestResult
@@ -68,8 +67,8 @@ public:
     {
         if (!condition)
         {
-            result.errors.push_back(message);
-            throw detail::RequireFailed{std::move(message)};
+            result.errors.push_back(std::move(message));
+            throw detail::RequireFailed{};
         }
     }
 
