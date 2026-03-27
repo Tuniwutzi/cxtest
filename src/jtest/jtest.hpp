@@ -327,8 +327,5 @@ results::Run run_all() noexcept;
 void print_results(const results::Test& test);
 void print_results(const results::Group& group);
 void print_results(const results::Run& run);
-bool is_result_successful(const results::Test& test);
-bool is_result_successful(const results::Group& test);
-bool is_result_successful(const results::Run& test);
 
 } // namespace jtest
