@@ -1,5 +1,6 @@
 #pragma once
 
+#include <format>
 #include <meta>
 #include <ranges>
 #include <stdexcept>
@@ -109,6 +110,7 @@ class BasicTestGroup
 public:
     virtual ~BasicTestGroup() = default;
 
+    virtual std::string_view get_name() const noexcept = 0;
     virtual std::span<const Test> get_tests() const noexcept = 0;
 };
 
@@ -225,15 +227,26 @@ private:
         }
     }
 
+    static std::string default_name(std::source_location loc = std::source_location::current())
+    {
+        return std::format("{}:{}", loc.file_name(), loc.line());
+    }
+
 public:
-    TestGroup(SkipRegistration)
+    TestGroup(SkipRegistration, std::string name = default_name())
+        : name{std::move(name)}
     {
         ((discover<infos>()), ...);
     }
-    TestGroup()
-        : TestGroup(skip_registration)
+    TestGroup(std::string name = default_name())
+        : TestGroup(skip_registration, std::move(name))
     {
         detail::test_groups.push_back(this);
+    }
+
+    std::string_view get_name() const noexcept override
+    {
+        return name;
     }
 
     std::span<const detail::Test> get_tests() const noexcept override
@@ -242,8 +255,8 @@ public:
     }
 
 private:
+    std::string name;
     std::vector<detail::Test> tests;
-    BasicTestGroup* next = nullptr;
 };
 
 namespace results
@@ -259,6 +272,7 @@ struct Test
 
 struct Group
 {
+    std::string name;
     std::vector<Test> test_results;
 };
 

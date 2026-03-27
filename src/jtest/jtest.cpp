@@ -44,7 +44,7 @@ void print_test_result(const char* name, const T& result)
 
 results::Group run_group(const detail::BasicTestGroup& group) noexcept
 {
-    results::Group results{};
+    results::Group results{.name{group.get_name()}};
 
     auto tests = group.get_tests();
     for (auto& test : tests)
