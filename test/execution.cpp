@@ -32,8 +32,8 @@ namespace invalid
 void test_invalid()
 {
     jtest::TestGroup<^^invalid> invalid_group{jtest::skip_registration};
-    CHECK(invalid_group.get_tests().size() == 0,
-          "There should not be tests in the invalid group, uncommenting them should cause compiler errors");
+    REQUIRE(invalid_group.get_tests().size() == 0,
+            "There should not be tests in the invalid group, uncommenting them should cause compiler errors");
 }
 
 namespace valid
@@ -83,42 +83,42 @@ void test_valid()
 {
     jtest::TestGroup<^^valid> valid_group{jtest::skip_registration};
     auto results = jtest::run_group(valid_group);
-    CHECK(results.test_results.size() == 10, "Unexpected number of tests ran");
+    REQUIRE(results.test_results.size() == 10, "Unexpected number of tests ran");
     for (const auto& [name, result] : results.test_results)
     {
         const auto& [ct, rt] = result;
         if (name.starts_with("cx_both"))
         {
-            CHECK(ct && rt, "cx_both should run compiletime and runtime tests");
+            REQUIRE(ct && rt, "cx_both should run compiletime and runtime tests");
         }
         else if (name.starts_with("cx_ct"))
         {
-            CHECK(ct && !rt, "cx_ct should run only compiletime tests");
+            REQUIRE(ct && !rt, "cx_ct should run only compiletime tests");
         }
         else if (name.starts_with("cx_rt"))
         {
-            CHECK(!ct && rt, "cx_rt should run only runtime tests");
+            REQUIRE(!ct && rt, "cx_rt should run only runtime tests");
         }
         else if (name.starts_with("ce"))
         {
-            CHECK(ct && !rt, "ce should run only compiletime tests");
+            REQUIRE(ct && !rt, "ce should run only compiletime tests");
         }
         else if (name.starts_with("rt"))
         {
-            CHECK(!ct && rt, "rt should run only runtime tests");
+            REQUIRE(!ct && rt, "rt should run only runtime tests");
         }
         else
         {
-            CHECK(false, std::format("Unknown test name for {}", name));
+            REQUIRE(false, std::format("Unknown test name for {}", name));
         }
 
         if (ct)
         {
-            CHECK(ct->errors.empty(), std::format("Compiletime tests should be successful for {}", name));
+            REQUIRE(ct->errors.empty(), std::format("Compiletime tests should be successful for {}", name));
         }
         if (rt)
         {
-            CHECK(rt->errors.empty(), std::format("Runtime tests should be successful for {}", name));
+            REQUIRE(rt->errors.empty(), std::format("Runtime tests should be successful for {}", name));
         }
     }
 }

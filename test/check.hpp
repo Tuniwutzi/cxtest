@@ -11,7 +11,7 @@ std::string format_source_location(std::source_location loc = std::source_locati
     return std::format("{}:{}", loc.file_name(), loc.line());
 }
 } // namespace
-#define CHECK(condition, context)                                                                                      \
+#define REQUIRE(condition, context)                                                                                    \
     do                                                                                                                 \
     {                                                                                                                  \
         if (!(condition))                                                                                              \

@@ -41,25 +41,25 @@ void test_assertions()
     jtest::TestGroup<^^tests> group{jtest::skip_registration};
     auto results = jtest::run_group(group);
 
-    CHECK(results.test_results.size() == 4, "Expected 4 tests to run");
+    REQUIRE(results.test_results.size() == 4, "Expected 4 tests to run");
 
     {
         auto& [ct, rt] = results.test_results.at("check_rt");
-        CHECK(rt.value().errors.empty() && !ct.value().errors.empty(),
-              "check_rt should succeed at runtime and fail at compiletime");
+        REQUIRE(rt.value().errors.empty() && !ct.value().errors.empty(),
+                "check_rt should succeed at runtime and fail at compiletime");
     }
 
     {
         auto& [ct, rt] = results.test_results.at("check_ct");
-        CHECK(!rt.value().errors.empty() && ct.value().errors.empty(),
-              "check_rt should succeed at runtime and fail at compiletime");
+        REQUIRE(!rt.value().errors.empty() && ct.value().errors.empty(),
+                "check_rt should succeed at runtime and fail at compiletime");
     }
 
     {
         auto& [ct, rt] = results.test_results.at("check_multiple_failures");
         auto check = [](auto& result)
         {
-            CHECK(result.value().errors.size() == 3, "check_multiple_failures expects 3 failures");
+            REQUIRE(result.value().errors.size() == 3, "check_multiple_failures expects 3 failures");
         };
         check(ct);
         check(rt);
@@ -69,7 +69,7 @@ void test_assertions()
         auto& [ct, rt] = results.test_results.at("check_then_require");
         auto check = [](auto& result)
         {
-            CHECK(result.value().errors.size() == 2, "check_then_require expects 2 failures");
+            REQUIRE(result.value().errors.size() == 2, "check_then_require expects 2 failures");
         };
         check(ct);
         check(rt);
