@@ -1,3 +1,5 @@
+/// This file tests execution of specific tests at runtime, compiletime or both.
+
 #include <jtest/jtest.hpp>
 
 #include "check.hpp"
@@ -6,12 +8,12 @@
 #include <format>
 #include <source_location>
 
-namespace tests
+namespace
 {
 
-// These tests should fail compilation in ways we can't catch and diagnose
 namespace invalid
 {
+// These tests should fail compilation in ways we can't catch and diagnose
 
 // Ask to execute at compiletime without constexpr or consteval
 // void comptime(jtest::CompiletimeTestContext& ctx) {}
@@ -27,9 +29,13 @@ namespace invalid
 
 } // namespace invalid
 
-jtest::TestGroup<^^invalid> invalid_group{jtest::skip_registration};
+void test_invalid()
+{
+    jtest::TestGroup<^^invalid> invalid_group{jtest::skip_registration};
+    CHECK(invalid_group.get_tests().size() == 0,
+          "There should not be tests in the invalid group, uncommenting them should cause compiler errors");
+}
 
-// Valid versions of the tests above
 namespace valid
 {
 // Constexpr can request anything:
@@ -75,7 +81,7 @@ void rt(std::same_as<jtest::RuntimeTestContext> auto& ctx)
 
 void test_valid()
 {
-    jtest::TestGroup<^^tests::valid> valid_group{jtest::skip_registration};
+    jtest::TestGroup<^^valid> valid_group{jtest::skip_registration};
     auto results = jtest::run_group(valid_group);
     CHECK(results.test_results.size() == 10, "Unexpected number of tests ran");
     for (const auto& [name, ct, rt] : results.test_results)
@@ -116,10 +122,10 @@ void test_valid()
     }
 }
 
-} // namespace tests
+} // namespace
 
-int main()
+void test_execution()
 {
-    tests::test_valid();
-    return 0;
+    test_invalid();
+    test_valid();
 }
