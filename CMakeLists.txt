@@ -1,0 +1,17 @@
+cmake_minimum_required(VERSION 3.31.0)
+
+project(jtest)
+
+add_library(jtest STATIC
+    src/jtest/jtest.cpp
+)
+target_compile_features(jtest PUBLIC cxx_std_26)
+target_compile_options(jtest PUBLIC
+    "-freflection"
+)
+target_include_directories(jtest PUBLIC src)
+
+add_executable(jtest_tests
+    test/discovery.cpp
+)
+target_link_libraries(jtest_tests PRIVATE jtest)
