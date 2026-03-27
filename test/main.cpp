@@ -1,14 +1,52 @@
 #include <algorithm>
 #include <array>
+#include <iostream>
+#include <meta>
+#include <string>
 
 void test_execution();
 void test_multi_tu();
 void test_assertions();
 
+namespace
+{
+template<std::meta::info info>
+struct Test
+{
+    std::string name{identifier_of(info)};
+    void (*function)() = [:info:];
+};
+
+bool execute_test(auto& test)
+{
+    std::cout << "Test " << test.name;
+    try
+    {
+        test.function();
+        std::cout << " succeeded\n";
+        return true;
+    }
+    catch (const std::exception& ex)
+    {
+        std::cout << " failed with error: " << ex.what() << "\n";
+        return false;
+    }
+}
+
+template<typename Tuple>
+bool execute(const Tuple& tuple)
+{
+    auto& [... tests] = tuple;
+    return ((execute_test(tests)) & ...);
+}
+} // namespace
+
 int main()
 {
-    test_execution();
-    test_multi_tu();
-    test_assertions();
-    return 0;
+    std::tuple tests{
+        Test<^^test_execution>{},
+        Test<^^test_multi_tu>{},
+        Test<^^test_assertions>{},
+    };
+    return execute(tests) ? 0 : 1;
 }
