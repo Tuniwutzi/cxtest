@@ -16,5 +16,6 @@ add_executable(jtest_tests
     test/execution.cpp
     test/multi_tu_side.cpp
     test/multi_tu_main.cpp
+    test/assertions.cpp
 )
 target_link_libraries(jtest_tests PRIVATE jtest)
