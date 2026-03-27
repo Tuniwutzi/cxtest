@@ -4,10 +4,13 @@
 #include <source_location>
 #include <stdexcept>
 
+namespace
+{
 std::string format_source_location(std::source_location loc = std::source_location::current())
 {
     return std::format("{}:{}", loc.file_name(), loc.line());
 }
+} // namespace
 #define CHECK(condition, context)                                                                                      \
     do                                                                                                                 \
     {                                                                                                                  \
