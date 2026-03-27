@@ -39,41 +39,41 @@ void test_invalid()
 namespace valid
 {
 // Constexpr can request anything:
-constexpr void cx_both(jtest::TestContext& ctx) {}
-constexpr void cx_both(auto& ctx) {}
-constexpr void cx_ct(jtest::CompiletimeTestContext& ctx)
+constexpr void cx_both_1(jtest::TestContext& ctx) {}
+constexpr void cx_both_2(auto& ctx) {}
+constexpr void cx_ct_1(jtest::CompiletimeTestContext& ctx)
 {
     ctx.check(std::is_constant_evaluated());
 }
-constexpr void cx_ct(std::same_as<jtest::CompiletimeTestContext> auto& ctx)
+constexpr void cx_ct_2(std::same_as<jtest::CompiletimeTestContext> auto& ctx)
 {
     ctx.check(std::is_constant_evaluated());
 }
-constexpr void cx_rt(jtest::RuntimeTestContext& ctx)
+constexpr void cx_rt_1(jtest::RuntimeTestContext& ctx)
 {
     ctx.check(!std::is_constant_evaluated());
 }
-constexpr void cx_rt(std::same_as<jtest::RuntimeTestContext> auto& ctx)
+constexpr void cx_rt_2(std::same_as<jtest::RuntimeTestContext> auto& ctx)
 {
     ctx.check(!std::is_constant_evaluated());
 }
 
 // Consteval can request only compiletime execution:
-consteval void ce(jtest::CompiletimeTestContext& ctx)
+consteval void ce_1(jtest::CompiletimeTestContext& ctx)
 {
     ctx.check(std::is_constant_evaluated());
 }
-consteval void ce(std::same_as<jtest::CompiletimeTestContext> auto& ctx)
+consteval void ce_2(std::same_as<jtest::CompiletimeTestContext> auto& ctx)
 {
     ctx.check(std::is_constant_evaluated());
 }
 
 // Without consteval or constexpr we can only request runtime execution:
-void rt(jtest::RuntimeTestContext& ctx)
+void rt_1(jtest::RuntimeTestContext& ctx)
 {
     ctx.check(!std::is_constant_evaluated());
 }
-void rt(std::same_as<jtest::RuntimeTestContext> auto& ctx)
+void rt_2(std::same_as<jtest::RuntimeTestContext> auto& ctx)
 {
     ctx.check(!std::is_constant_evaluated());
 }
@@ -87,23 +87,23 @@ void test_valid()
     for (const auto& [name, result] : results.test_results)
     {
         const auto& [ct, rt] = result;
-        if (name == "cx_both")
+        if (name.starts_with("cx_both"))
         {
             CHECK(ct && rt, "cx_both should run compiletime and runtime tests");
         }
-        else if (name == "cx_ct")
+        else if (name.starts_with("cx_ct"))
         {
             CHECK(ct && !rt, "cx_ct should run only compiletime tests");
         }
-        else if (name == "cx_rt")
+        else if (name.starts_with("cx_rt"))
         {
             CHECK(!ct && rt, "cx_rt should run only runtime tests");
         }
-        else if (name == "ce")
+        else if (name.starts_with("ce"))
         {
             CHECK(ct && !rt, "ce should run only compiletime tests");
         }
-        else if (name == "rt")
+        else if (name.starts_with("rt"))
         {
             CHECK(!ct && rt, "rt should run only runtime tests");
         }

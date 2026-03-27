@@ -60,7 +60,7 @@ results::Group run_group(const detail::BasicTestGroup& group) noexcept
             test_result.rt_result = detail::execute_test<RuntimeTestContext>(*runtime_test);
         }
 
-        results.test_results.emplace(test.name, std::move(test_result));
+        results.test_results.try_emplace(test.name, std::move(test_result));
     }
 
     return results;
@@ -72,7 +72,7 @@ results::Run run_all() noexcept
 
     for (auto* group : detail::test_groups)
     {
-        run_results.group_results.emplace(std::string{group->get_name()}, run_group(*group));
+        run_results.group_results.try_emplace(std::string{group->get_name()}, run_group(*group));
     }
 
     return run_results;

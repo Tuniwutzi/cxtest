@@ -144,6 +144,19 @@ private:
     template<std::meta::info info>
     void discover()
     {
+        auto add_test = [this](detail::Test test)
+        {
+            test.name = std::define_static_string(identifier_of(info));
+            for (const detail::Test& existing : tests)
+            {
+                if (test.name == existing.name)
+                {
+                    throw std::runtime_error{
+                        std::format("Test with name {} already exists in group {}", test.name, this->name)};
+                }
+            }
+            tests.push_back(std::move(test));
+        };
         if constexpr (is_template(info))
         {
             detail::Test test;
@@ -188,8 +201,7 @@ private:
 
             if (test.compiletime_result || test.runtime_test)
             {
-                test.name = std::define_static_string(identifier_of(info));
-                tests.push_back(std::move(test));
+                add_test(std::move(test));
             }
         }
         else if constexpr (is_function(info))
@@ -214,8 +226,7 @@ private:
 
             if (test.compiletime_result || test.runtime_test)
             {
-                test.name = std::define_static_string(identifier_of(info));
-                tests.push_back(std::move(test));
+                add_test(std::move(test));
             }
         }
         else if constexpr (is_namespace(info))
@@ -242,6 +253,14 @@ public:
     TestGroup(std::string name = default_name())
         : TestGroup(skip_registration, std::move(name))
     {
+        for (auto& group : detail::test_groups)
+        {
+            if (group->get_name() == name)
+            {
+                throw std::invalid_argument{std::format("A test group named {} already exists", name)};
+            }
+        }
+
         detail::test_groups.push_back(this);
     }
 
@@ -271,12 +290,12 @@ struct Test
 
 struct Group
 {
-    std::unordered_multimap<std::string, Test> test_results;
+    std::unordered_map<std::string, Test> test_results;
 };
 
 struct Run
 {
-    std::unordered_multimap<std::string, Group> group_results;
+    std::unordered_map<std::string, Group> group_results;
 };
 
 } // namespace results
