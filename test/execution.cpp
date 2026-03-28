@@ -83,8 +83,8 @@ void test_valid()
 {
     auto valid_group = jtest::group_tests<^^valid>();
     auto results = jtest::run_group(valid_group);
-    REQUIRE(results.test_results.size() == 10, "Unexpected number of tests ran");
-    for (const auto& [name, result] : results.test_results)
+    REQUIRE(results.tests.size() == 10, "Unexpected number of tests ran");
+    for (const auto& [name, result] : results.tests)
     {
         const auto& [ct, rt] = result;
         if (name.starts_with("cx_both"))

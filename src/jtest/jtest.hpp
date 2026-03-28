@@ -14,21 +14,26 @@
 namespace jtest
 {
 
+namespace results
+{
+
+struct Runtime
+{
+    std::vector<std::string> errors;
+};
+
+struct Compiletime
+{
+    std::span<const char* const> errors;
+};
+
+} // namespace results
+
 namespace detail
 {
 
 struct RequireFailed
 {
-};
-
-struct TestResult
-{
-    std::vector<std::string> errors;
-};
-
-struct CompiletimeTestResult
-{
-    std::span<const char* const> errors;
 };
 
 } // namespace detail
@@ -136,14 +141,14 @@ public:
 protected:
     Context() = default;
 
-    detail::TestResult result;
+    results::Runtime result;
 };
 
 class CTContext : public Context
 {
 public:
     consteval CTContext() = default;
-    consteval const detail::TestResult& get_result() const noexcept
+    consteval const results::Runtime& get_result() const noexcept
     {
         return result;
     }
@@ -153,7 +158,7 @@ class RTContext : public Context
 {
 public:
     RTContext();
-    const detail::TestResult& get_result() const noexcept;
+    const results::Runtime& get_result() const noexcept;
 };
 
 namespace detail
@@ -178,12 +183,12 @@ struct RuntimeTestImpl : RuntimeTest
 struct Test
 {
     const char* name;
-    std::optional<detail::CompiletimeTestResult> compiletime_result = {};
+    std::optional<results::Compiletime> compiletime_result = {};
     const RuntimeTest* runtime_test = nullptr;
 };
 
 template<typename Context>
-constexpr detail::TestResult execute_test(auto&& test)
+constexpr results::Runtime execute_test(auto&& test)
 {
     Context context{};
     try
@@ -235,7 +240,7 @@ void discover_tests(std::string_view group_name, std::vector<Test>& tests)
                                              {
                                                  return std::define_static_string(string);
                                              }));
-            test.compiletime_result = detail::CompiletimeTestResult{.errors = result};
+            test.compiletime_result = results::Compiletime{.errors = result};
         }
 
         if constexpr (constexpr auto runtime_test = [] consteval -> std::optional<std::meta::info>
@@ -270,7 +275,7 @@ void discover_tests(std::string_view group_name, std::vector<Test>& tests)
                                                                  {
                                                                      return std::define_static_string(string);
                                                                  }));
-            test.compiletime_result = detail::CompiletimeTestResult{.errors = result};
+            test.compiletime_result = results::Compiletime{.errors = result};
         }
         if constexpr (std::is_invocable_v<decltype([:info:]), RTContext&>)
         {
@@ -375,27 +380,21 @@ namespace results
 {
 struct Test
 {
-    // TODO: this is bad, organize this differently
-    std::optional<detail::CompiletimeTestResult> ct_result;
-    std::optional<detail::TestResult> rt_result;
+    std::optional<Compiletime> compiletime;
+    std::optional<Runtime> runtime;
 };
 
 struct Group
 {
-    std::unordered_map<std::string, Test> test_results;
-};
-
-struct Run
-{
-    std::unordered_map<std::string, Group> group_results;
+    std::unordered_map<std::string, Test> tests;
 };
 
 } // namespace results
 
 results::Group run_group(const Group& group) noexcept;
-results::Run run_all() noexcept;
+std::unordered_map<std::string, results::Group> run_registered_tests() noexcept;
 void print_results(const results::Test& test);
 void print_results(const results::Group& group);
-void print_results(const results::Run& run);
+void print_results(const std::unordered_map<std::string, results::Group>& groups);
 
 } // namespace jtest

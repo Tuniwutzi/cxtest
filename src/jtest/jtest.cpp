@@ -6,7 +6,7 @@ namespace jtest
 {
 
 RTContext::RTContext() {}
-const detail::TestResult& RTContext::get_result() const noexcept
+const results::Runtime& RTContext::get_result() const noexcept
 {
     return result;
 }
@@ -29,9 +29,9 @@ void print_test_result(const char* name, const T& result)
         return;
     }
 
-    static constexpr std::string_view execution = std::same_as<T, detail::TestResult>              ? "runtime"
-                                                  : std::same_as<T, detail::CompiletimeTestResult> ? "compiletime"
-                                                                                                   : "??";
+    static constexpr std::string_view execution = std::same_as<T, results::Runtime>       ? "runtime"
+                                                  : std::same_as<T, results::Compiletime> ? "compiletime"
+                                                                                          : "??";
 
     std::cout << std::format("Test {} failed at {} with errors:\n", name, execution);
     for (auto& error : result.errors)
@@ -52,27 +52,27 @@ results::Group run_group(const Group& group) noexcept
         results::Test test_result{};
         if (auto& result = test.compiletime_result)
         {
-            test_result.ct_result = *result;
+            test_result.compiletime = *result;
         }
 
         if (auto* runtime_test = test.runtime_test)
         {
-            test_result.rt_result = detail::execute_test<RTContext>(*runtime_test);
+            test_result.runtime = detail::execute_test<RTContext>(*runtime_test);
         }
 
-        results.test_results.try_emplace(test.name, std::move(test_result));
+        results.tests.try_emplace(test.name, std::move(test_result));
     }
 
     return results;
 }
 
-results::Run run_all() noexcept
+std::unordered_map<std::string, results::Group> run_registered_tests() noexcept
 {
-    results::Run run_results{};
+    std::unordered_map<std::string, results::Group> run_results{};
 
     for (auto& group : detail::registrations)
     {
-        run_results.group_results.try_emplace(std::string{group.get_name()}, run_group(group));
+        run_results.try_emplace(std::string{group.get_name()}, run_group(group));
     }
 
     return run_results;

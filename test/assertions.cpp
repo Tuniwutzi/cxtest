@@ -81,22 +81,22 @@ void test_assertions()
     auto group = jtest::group_tests<^^tests>();
     auto results = jtest::run_group(group);
 
-    REQUIRE(results.test_results.size() == 6, "Expected 6 tests to run");
+    REQUIRE(results.tests.size() == 6, "Expected 6 tests to run");
 
     {
-        auto& [ct, rt] = results.test_results.at("check_rt");
+        auto& [ct, rt] = results.tests.at("check_rt");
         REQUIRE(rt.value().errors.empty() && !ct.value().errors.empty(),
                 "check_rt should succeed at runtime and fail at compiletime");
     }
 
     {
-        auto& [ct, rt] = results.test_results.at("check_ct");
+        auto& [ct, rt] = results.tests.at("check_ct");
         REQUIRE(!rt.value().errors.empty() && ct.value().errors.empty(),
                 "check_rt should succeed at runtime and fail at compiletime");
     }
 
     {
-        auto& [ct, rt] = results.test_results.at("check_multiple_failures");
+        auto& [ct, rt] = results.tests.at("check_multiple_failures");
         auto check = [](auto& result)
         {
             REQUIRE(result.value().errors.size() == 3, "check_multiple_failures expects 3 failures");
@@ -106,7 +106,7 @@ void test_assertions()
     }
 
     {
-        auto& [ct, rt] = results.test_results.at("check_then_require");
+        auto& [ct, rt] = results.tests.at("check_then_require");
         auto check = [](auto& result)
         {
             REQUIRE(result.value().errors.size() == 2, "check_then_require expects 2 failures");
@@ -116,7 +116,7 @@ void test_assertions()
     }
 
     {
-        auto& [ct, rt] = results.test_results.at("check_nothrow");
+        auto& [ct, rt] = results.tests.at("check_nothrow");
         auto check = [](auto& result)
         {
             auto equal = std::ranges::equal(result.value().errors, std::vector<std::string>{"Failure", "ReqFailure"});
@@ -127,7 +127,7 @@ void test_assertions()
     }
 
     {
-        auto& [ct, rt] = results.test_results.at("check_throws");
+        auto& [ct, rt] = results.tests.at("check_throws");
         auto check = [](auto& result)
         {
             auto equal = std::ranges::equal(result.value().errors, std::vector<std::string>{"Failure", "ReqFailure"});
