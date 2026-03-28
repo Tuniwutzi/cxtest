@@ -181,11 +181,6 @@ struct Test
     const RuntimeTest* runtime_test = nullptr;
 };
 
-struct GroupResults
-{
-    size_t failed;
-};
-
 class BasicTestGroup
 {
 public:
