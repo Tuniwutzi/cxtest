@@ -5,8 +5,8 @@
 namespace jtest
 {
 
-RuntimeTestContext::RuntimeTestContext() {}
-const detail::TestResult& RuntimeTestContext::get_result() const noexcept
+RTContext::RTContext() {}
+const detail::TestResult& RTContext::get_result() const noexcept
 {
     return result;
 }
@@ -57,7 +57,7 @@ results::Group run_group(const detail::BasicTestGroup& group) noexcept
 
         if (auto* runtime_test = test.runtime_test)
         {
-            test_result.rt_result = detail::execute_test<RuntimeTestContext>(*runtime_test);
+            test_result.rt_result = detail::execute_test<RTContext>(*runtime_test);
         }
 
         results.test_results.try_emplace(test.name, std::move(test_result));

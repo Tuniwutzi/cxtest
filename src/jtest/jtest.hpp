@@ -32,7 +32,7 @@ struct CompiletimeTestResult
 
 } // namespace detail
 
-class TestContext
+class Context
 {
 private:
     static constexpr std::string default_message(std::source_location loc = std::source_location::current())
@@ -65,7 +65,7 @@ private:
     }
 
 public:
-    virtual ~TestContext() = default;
+    virtual ~Context() = default;
 
     constexpr void check(bool condition, std::string message = default_message()) noexcept
     {
@@ -133,25 +133,25 @@ public:
     }
 
 protected:
-    TestContext() = default;
+    Context() = default;
 
     detail::TestResult result;
 };
 
-class CompiletimeTestContext : public TestContext
+class CTContext : public Context
 {
 public:
-    consteval CompiletimeTestContext() = default;
+    consteval CTContext() = default;
     consteval const detail::TestResult& get_result() const noexcept
     {
         return result;
     }
 };
 
-class RuntimeTestContext : public TestContext
+class RTContext : public Context
 {
 public:
-    RuntimeTestContext();
+    RTContext();
     const detail::TestResult& get_result() const noexcept;
 };
 
@@ -162,13 +162,13 @@ struct RuntimeTest
 {
 public:
     virtual ~RuntimeTest() = default;
-    virtual void operator()(RuntimeTestContext& context) const = 0;
+    virtual void operator()(RTContext& context) const = 0;
 };
 
 template<auto function>
 struct RuntimeTestImpl : RuntimeTest
 {
-    void operator()(RuntimeTestContext& context) const override
+    void operator()(RTContext& context) const override
     {
         function(context);
     }
@@ -244,7 +244,7 @@ private:
                           {
                               try
                               {
-                                  return substitute(info, {^^CompiletimeTestContext});
+                                  return substitute(info, {^^CTContext});
                               }
                               catch (...)
                               {
@@ -253,13 +253,13 @@ private:
                           }())
             {
 
-                constexpr auto result = std::define_static_array(
-                    detail::execute_test<CompiletimeTestContext>([:*compiletime_test:]).errors |
-                    std::views::transform(
-                        [](auto& string)
-                        {
-                            return std::define_static_string(string);
-                        }));
+                constexpr auto result =
+                    std::define_static_array(detail::execute_test<CTContext>([:*compiletime_test:]).errors |
+                                             std::views::transform(
+                                                 [](auto& string)
+                                                 {
+                                                     return std::define_static_string(string);
+                                                 }));
                 test.compiletime_result = detail::CompiletimeTestResult{.errors = result};
             }
 
@@ -267,7 +267,7 @@ private:
                           {
                               try
                               {
-                                  return substitute(info, {^^RuntimeTestContext});
+                                  return substitute(info, {^^RTContext});
                               }
                               catch (...)
                               {
@@ -287,18 +287,17 @@ private:
         else if constexpr (is_function(info))
         {
             detail::Test test;
-            if constexpr (std::is_invocable_v<decltype([:info:]), CompiletimeTestContext&>)
+            if constexpr (std::is_invocable_v<decltype([:info:]), CTContext&>)
             {
-                constexpr auto result =
-                    std::define_static_array(detail::execute_test<CompiletimeTestContext>([:info:]).errors |
-                                             std::views::transform(
-                                                 [](auto& string)
-                                                 {
-                                                     return std::define_static_string(string);
-                                                 }));
+                constexpr auto result = std::define_static_array(detail::execute_test<CTContext>([:info:]).errors |
+                                                                 std::views::transform(
+                                                                     [](auto& string)
+                                                                     {
+                                                                         return std::define_static_string(string);
+                                                                     }));
                 test.compiletime_result = detail::CompiletimeTestResult{.errors = result};
             }
-            if constexpr (std::is_invocable_v<decltype([:info:]), RuntimeTestContext&>)
+            if constexpr (std::is_invocable_v<decltype([:info:]), RTContext&>)
             {
                 static constexpr detail::RuntimeTestImpl<([:info:])> runner{};
                 test.runtime_test = &runner;

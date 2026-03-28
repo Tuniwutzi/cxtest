@@ -8,11 +8,11 @@ namespace
 namespace multi_tu_side
 {
 
-void side_1(jtest::RuntimeTestContext& ctx)
+void side_1(jtest::RTContext& ctx)
 {
     ctx.check(!std::is_constant_evaluated());
 }
-consteval void side_2(jtest::CompiletimeTestContext& ctx)
+consteval void side_2(jtest::CTContext& ctx)
 {
     ctx.check(std::is_constant_evaluated());
 }

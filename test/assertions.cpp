@@ -32,7 +32,7 @@ constexpr void check_then_require(auto& ctx)
     ctx.check(false);
 }
 
-constexpr void check_nothrow(jtest::TestContext& ctx)
+constexpr void check_nothrow(jtest::Context& ctx)
 {
     ctx.check_nothrow([] {}, "Success");
     ctx.check_nothrow(
@@ -51,7 +51,7 @@ constexpr void check_nothrow(jtest::TestContext& ctx)
     ctx.check(false, "Unreachable");
 }
 
-constexpr void check_throws(jtest::TestContext& ctx)
+constexpr void check_throws(jtest::Context& ctx)
 {
     ctx.check_throws(
         []

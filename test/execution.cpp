@@ -16,15 +16,15 @@ namespace invalid
 // These tests should fail compilation in ways we can't catch and diagnose
 
 // Ask to execute at compiletime without constexpr or consteval
-// void comptime(jtest::CompiletimeTestContext& ctx) {}
-// void comptime(jtest::TestContext& ctx) {}
-// void comptime(std::same_as<jtest::CompiletimeTestContext> auto& ctx) {}
+// void comptime(jtest::CTContext& ctx) {}
+// void comptime(jtest::Context& ctx) {}
+// void comptime(std::same_as<jtest::CTContext> auto& ctx) {}
 // void comptime(auto& ctx) {}
 
 // Ask to execute at runtime with consteval
-// consteval void runtime(jtest::RuntimeTestContext& ctx) {}
-// consteval void runtime(jtest::TestContext& ctx) {}
-// consteval void runtime(std::same_as<jtest::RuntimeTestContext> auto& ctx) {}
+// consteval void runtime(jtest::RTContext& ctx) {}
+// consteval void runtime(jtest::Context& ctx) {}
+// consteval void runtime(std::same_as<jtest::RTContext> auto& ctx) {}
 // consteval void runtime(auto& ctx) {}
 
 } // namespace invalid
@@ -39,41 +39,41 @@ void test_invalid()
 namespace valid
 {
 // Constexpr can request anything:
-constexpr void cx_both_1(jtest::TestContext& ctx) {}
+constexpr void cx_both_1(jtest::Context& ctx) {}
 constexpr void cx_both_2(auto& ctx) {}
-constexpr void cx_ct_1(jtest::CompiletimeTestContext& ctx)
+constexpr void cx_ct_1(jtest::CTContext& ctx)
 {
     ctx.check(std::is_constant_evaluated());
 }
-constexpr void cx_ct_2(std::same_as<jtest::CompiletimeTestContext> auto& ctx)
+constexpr void cx_ct_2(std::same_as<jtest::CTContext> auto& ctx)
 {
     ctx.check(std::is_constant_evaluated());
 }
-constexpr void cx_rt_1(jtest::RuntimeTestContext& ctx)
+constexpr void cx_rt_1(jtest::RTContext& ctx)
 {
     ctx.check(!std::is_constant_evaluated());
 }
-constexpr void cx_rt_2(std::same_as<jtest::RuntimeTestContext> auto& ctx)
+constexpr void cx_rt_2(std::same_as<jtest::RTContext> auto& ctx)
 {
     ctx.check(!std::is_constant_evaluated());
 }
 
 // Consteval can request only compiletime execution:
-consteval void ce_1(jtest::CompiletimeTestContext& ctx)
+consteval void ce_1(jtest::CTContext& ctx)
 {
     ctx.check(std::is_constant_evaluated());
 }
-consteval void ce_2(std::same_as<jtest::CompiletimeTestContext> auto& ctx)
+consteval void ce_2(std::same_as<jtest::CTContext> auto& ctx)
 {
     ctx.check(std::is_constant_evaluated());
 }
 
 // Without consteval or constexpr we can only request runtime execution:
-void rt_1(jtest::RuntimeTestContext& ctx)
+void rt_1(jtest::RTContext& ctx)
 {
     ctx.check(!std::is_constant_evaluated());
 }
-void rt_2(std::same_as<jtest::RuntimeTestContext> auto& ctx)
+void rt_2(std::same_as<jtest::RTContext> auto& ctx)
 {
     ctx.check(!std::is_constant_evaluated());
 }

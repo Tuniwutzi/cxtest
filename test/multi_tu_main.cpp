@@ -10,11 +10,11 @@ namespace
 namespace multi_tu_main
 {
 
-void main_1(jtest::RuntimeTestContext& ctx)
+void main_1(jtest::RTContext& ctx)
 {
     ctx.check(!std::is_constant_evaluated());
 }
-consteval void main_2(jtest::CompiletimeTestContext& ctx)
+consteval void main_2(jtest::CTContext& ctx)
 {
     ctx.check(std::is_constant_evaluated());
 }
