@@ -78,7 +78,7 @@ constexpr void check_throws(jtest::Context& ctx)
 
 void test_assertions()
 {
-    jtest::TestGroup<^^tests> group{jtest::skip_registration};
+    auto group = jtest::group_tests<^^tests>();
     auto results = jtest::run_group(group);
 
     REQUIRE(results.test_results.size() == 6, "Expected 6 tests to run");

@@ -25,7 +25,7 @@ constexpr void main_3(auto& ctx)
 
 } // namespace multi_tu_main
 
-jtest::TestGroup<^^multi_tu_main> group{"multi_tu_main"};
+jtest::Registration group_registration{jtest::group_tests<^^multi_tu_main>("multi_tu_main")};
 
 } // namespace
 

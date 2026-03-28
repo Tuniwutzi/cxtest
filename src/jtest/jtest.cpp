@@ -14,7 +14,7 @@ const detail::TestResult& RTContext::get_result() const noexcept
 namespace detail
 {
 
-std::vector<BasicTestGroup*> test_groups{};
+std::list<Group> registrations{};
 
 } // namespace detail
 
@@ -42,7 +42,7 @@ void print_test_result(const char* name, const T& result)
 
 } // namespace
 
-results::Group run_group(const detail::BasicTestGroup& group) noexcept
+results::Group run_group(const Group& group) noexcept
 {
     results::Group results{};
 
@@ -70,9 +70,9 @@ results::Run run_all() noexcept
 {
     results::Run run_results{};
 
-    for (auto* group : detail::test_groups)
+    for (auto& group : detail::registrations)
     {
-        run_results.group_results.try_emplace(std::string{group->get_name()}, run_group(*group));
+        run_results.group_results.try_emplace(std::string{group.get_name()}, run_group(group));
     }
 
     return run_results;

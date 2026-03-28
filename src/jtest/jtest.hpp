@@ -3,6 +3,7 @@
 #include <charconv>
 #include <format>
 #include <functional>
+#include <list>
 #include <meta>
 #include <ranges>
 #include <stdexcept>
@@ -181,17 +182,6 @@ struct Test
     const RuntimeTest* runtime_test = nullptr;
 };
 
-class BasicTestGroup
-{
-public:
-    virtual ~BasicTestGroup() = default;
-
-    virtual std::string_view get_name() const noexcept = 0;
-    virtual std::span<const Test> get_tests() const noexcept = 0;
-};
-
-extern std::vector<BasicTestGroup*> test_groups;
-
 template<typename Context>
 constexpr detail::TestResult execute_test(auto&& test)
 {
@@ -206,144 +196,130 @@ constexpr detail::TestResult execute_test(auto&& test)
     return context.get_result();
 }
 
-} // namespace detail
-
-constexpr struct SkipRegistration
+template<std::meta::info info>
+void discover_tests(std::string_view group_name, std::vector<Test>& tests)
 {
-} skip_registration{};
-
-template<std::meta::info... infos>
-class TestGroup : public detail::BasicTestGroup
-{
-private:
-    template<std::meta::info info>
-    void discover()
+    auto add_test = [&](detail::Test test)
     {
-        auto add_test = [this](detail::Test test)
+        test.name = std::define_static_string(identifier_of(info));
+        for (const detail::Test& existing : tests)
         {
-            test.name = std::define_static_string(identifier_of(info));
-            for (const detail::Test& existing : tests)
+            if (test.name == existing.name)
             {
-                if (test.name == existing.name)
-                {
-                    throw std::runtime_error{
-                        std::format("Test with name {} already exists in group {}", test.name, this->name)};
-                }
-            }
-            tests.push_back(std::move(test));
-        };
-        if constexpr (is_template(info))
-        {
-            detail::Test test;
-            if constexpr (constexpr auto compiletime_test = [] consteval -> std::optional<std::meta::info>
-                          {
-                              try
-                              {
-                                  return substitute(info, {^^CTContext});
-                              }
-                              catch (...)
-                              {
-                                  return std::nullopt;
-                              }
-                          }())
-            {
-
-                constexpr auto result =
-                    std::define_static_array(detail::execute_test<CTContext>([:*compiletime_test:]).errors |
-                                             std::views::transform(
-                                                 [](auto& string)
-                                                 {
-                                                     return std::define_static_string(string);
-                                                 }));
-                test.compiletime_result = detail::CompiletimeTestResult{.errors = result};
-            }
-
-            if constexpr (constexpr auto runtime_test = [] consteval -> std::optional<std::meta::info>
-                          {
-                              try
-                              {
-                                  return substitute(info, {^^RTContext});
-                              }
-                              catch (...)
-                              {
-                                  return std::nullopt;
-                              }
-                          }())
-            {
-                static constexpr detail::RuntimeTestImpl<([:*runtime_test:])> runner{};
-                test.runtime_test = &runner;
-            }
-
-            if (test.compiletime_result || test.runtime_test)
-            {
-                add_test(std::move(test));
+                throw std::runtime_error{
+                    std::format("Test with name {} already exists in group {}", test.name, group_name)};
             }
         }
-        else if constexpr (is_function(info))
+        tests.push_back(std::move(test));
+    };
+    if constexpr (is_template(info))
+    {
+        detail::Test test;
+        if constexpr (constexpr auto compiletime_test = [] consteval -> std::optional<std::meta::info>
+                      {
+                          try
+                          {
+                              return substitute(info, {^^CTContext});
+                          }
+                          catch (...)
+                          {
+                              return std::nullopt;
+                          }
+                      }())
         {
-            detail::Test test;
-            if constexpr (std::is_invocable_v<decltype([:info:]), CTContext&>)
-            {
-                constexpr auto result = std::define_static_array(detail::execute_test<CTContext>([:info:]).errors |
-                                                                 std::views::transform(
-                                                                     [](auto& string)
-                                                                     {
-                                                                         return std::define_static_string(string);
-                                                                     }));
-                test.compiletime_result = detail::CompiletimeTestResult{.errors = result};
-            }
-            if constexpr (std::is_invocable_v<decltype([:info:]), RTContext&>)
-            {
-                static constexpr detail::RuntimeTestImpl<([:info:])> runner{};
-                test.runtime_test = &runner;
-            }
 
-            if (test.compiletime_result || test.runtime_test)
-            {
-                add_test(std::move(test));
-            }
+            constexpr auto result =
+                std::define_static_array(detail::execute_test<CTContext>([:*compiletime_test:]).errors |
+                                         std::views::transform(
+                                             [](auto& string)
+                                             {
+                                                 return std::define_static_string(string);
+                                             }));
+            test.compiletime_result = detail::CompiletimeTestResult{.errors = result};
         }
-        else if constexpr (is_namespace(info))
+
+        if constexpr (constexpr auto runtime_test = [] consteval -> std::optional<std::meta::info>
+                      {
+                          try
+                          {
+                              return substitute(info, {^^RTContext});
+                          }
+                          catch (...)
+                          {
+                              return std::nullopt;
+                          }
+                      }())
         {
-            template for (constexpr auto member :
-                          std::define_static_array(members_of(info, std::meta::access_context::current())))
-            {
-                discover<member>();
-            }
+            static constexpr detail::RuntimeTestImpl<([:*runtime_test:])> runner{};
+            test.runtime_test = &runner;
+        }
+
+        if (test.compiletime_result || test.runtime_test)
+        {
+            add_test(std::move(test));
         }
     }
+    else if constexpr (is_function(info))
+    {
+        detail::Test test;
+        if constexpr (std::is_invocable_v<decltype([:info:]), CTContext&>)
+        {
+            constexpr auto result = std::define_static_array(detail::execute_test<CTContext>([:info:]).errors |
+                                                             std::views::transform(
+                                                                 [](auto& string)
+                                                                 {
+                                                                     return std::define_static_string(string);
+                                                                 }));
+            test.compiletime_result = detail::CompiletimeTestResult{.errors = result};
+        }
+        if constexpr (std::is_invocable_v<decltype([:info:]), RTContext&>)
+        {
+            static constexpr detail::RuntimeTestImpl<([:info:])> runner{};
+            test.runtime_test = &runner;
+        }
 
+        if (test.compiletime_result || test.runtime_test)
+        {
+            add_test(std::move(test));
+        }
+    }
+    else if constexpr (is_namespace(info))
+    {
+        template for (constexpr auto member :
+                      std::define_static_array(members_of(info, std::meta::access_context::current())))
+        {
+            discover_tests<member>(group_name, tests);
+        }
+    }
+}
+
+} // namespace detail
+
+class Group
+{
+public:
     static std::string default_name(std::source_location loc = std::source_location::current())
     {
         return std::format("{}:{}", loc.file_name(), loc.line());
     }
 
-public:
-    TestGroup(SkipRegistration, std::string name = default_name())
+    Group(std::string name = default_name())
         : name{std::move(name)}
     {
-        ((discover<infos>()), ...);
     }
-    TestGroup(std::string name = default_name())
-        : TestGroup(skip_registration, std::move(name))
+
+    template<std::meta::info test_or_namespace>
+    void add()
     {
-        for (auto& group : detail::test_groups)
-        {
-            if (group->get_name() == name)
-            {
-                throw std::invalid_argument{std::format("A test group named {} already exists", name)};
-            }
-        }
-
-        detail::test_groups.push_back(this);
+        detail::discover_tests<test_or_namespace>(name, tests);
     }
 
-    std::string_view get_name() const noexcept override
+    std::string_view get_name() const noexcept
     {
         return name;
     }
 
-    std::span<const detail::Test> get_tests() const noexcept override
+    std::span<const detail::Test> get_tests() const noexcept
     {
         return tests;
     }
@@ -352,6 +328,48 @@ private:
     std::string name;
     std::vector<detail::Test> tests;
 };
+
+template<std::meta::info test_or_namespace>
+Group group_tests(std::string name = Group::default_name())
+{
+    Group group{std::move(name)};
+    group.add<test_or_namespace>();
+    return group;
+}
+
+namespace detail
+{
+extern std::list<Group> registrations;
+}
+
+struct [[nodiscard]] Registration
+{
+    Registration(Group group)
+        : position{[&group]
+                   {
+                       return detail::registrations.insert(detail::registrations.end(), std::move(group));
+                   }()}
+    {
+    }
+    ~Registration()
+    {
+        detail::registrations.erase(position);
+    }
+
+    Registration(const Registration&) = delete;
+    Registration& operator=(const Registration&) = delete;
+    Registration(Registration&&) = delete;
+    Registration& operator=(Registration&&) = delete;
+
+private:
+    std::list<Group>::const_iterator position;
+};
+
+template<std::meta::info test_or_namespace>
+Registration register_tests(std::string name = Group::default_name())
+{
+    return {group_tests<test_or_namespace>(std::move(name))};
+}
 
 namespace results
 {
@@ -374,8 +392,7 @@ struct Run
 
 } // namespace results
 
-// TODO: move the generic test group out of detail:: for this?
-results::Group run_group(const detail::BasicTestGroup& group) noexcept;
+results::Group run_group(const Group& group) noexcept;
 results::Run run_all() noexcept;
 void print_results(const results::Test& test);
 void print_results(const results::Group& group);

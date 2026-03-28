@@ -31,7 +31,7 @@ namespace invalid
 
 void test_invalid()
 {
-    jtest::TestGroup<^^invalid> invalid_group{jtest::skip_registration};
+    auto invalid_group = jtest::group_tests<^^invalid>();
     REQUIRE(invalid_group.get_tests().size() == 0,
             "There should not be tests in the invalid group, uncommenting them should cause compiler errors");
 }
@@ -81,7 +81,7 @@ void rt_2(std::same_as<jtest::RTContext> auto& ctx)
 
 void test_valid()
 {
-    jtest::TestGroup<^^valid> valid_group{jtest::skip_registration};
+    auto valid_group = jtest::group_tests<^^valid>();
     auto results = jtest::run_group(valid_group);
     REQUIRE(results.test_results.size() == 10, "Unexpected number of tests ran");
     for (const auto& [name, result] : results.test_results)

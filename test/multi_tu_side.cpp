@@ -23,6 +23,6 @@ constexpr void side_3(auto& ctx)
 
 } // namespace multi_tu_side
 
-jtest::TestGroup<^^multi_tu_side> group{"multi_tu_side"};
+auto registration = jtest::register_tests<^^multi_tu_side>("multi_tu_side");
 
 } // namespace
