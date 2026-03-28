@@ -2,6 +2,7 @@
 
 #include <charconv>
 #include <format>
+#include <functional>
 #include <meta>
 #include <ranges>
 #include <stdexcept>
@@ -53,6 +54,16 @@ private:
         return std::string{"Assertion failed at "} + loc.file_name() + ":" + line;
     }
 
+    template<bool throws>
+    constexpr void handle_failure(std::string&& message) noexcept(!throws)
+    {
+        result.errors.push_back(std::move(message));
+        if constexpr (throws)
+        {
+            throw detail::RequireFailed{};
+        }
+    }
+
 public:
     virtual ~TestContext() = default;
 
@@ -60,15 +71,64 @@ public:
     {
         if (!condition)
         {
-            result.errors.push_back(std::move(message));
+            handle_failure<false>(std::move(message));
         }
     }
+    constexpr void check_nothrow(auto&& functor, std::string message = default_message()) noexcept
+    {
+        try
+        {
+            std::invoke(std::forward<decltype(functor)>(functor));
+        }
+        catch (...)
+        {
+            handle_failure<false>(std::move(message));
+        }
+    }
+    constexpr void check_throws(auto&& functor, std::string message = default_message()) noexcept
+    {
+        try
+        {
+            std::invoke(std::forward<decltype(functor)>(functor));
+            handle_failure<false>(std::move(message));
+        }
+        catch (...)
+        {
+        }
+    }
+
     constexpr void require(bool condition, std::string message = default_message())
     {
         if (!condition)
         {
-            result.errors.push_back(std::move(message));
-            throw detail::RequireFailed{};
+            handle_failure<true>(std::move(message));
+        }
+    }
+    constexpr void require_nothrow(auto&& functor, std::string message = default_message())
+    {
+        try
+        {
+            std::invoke(std::forward<decltype(functor)>(functor));
+        }
+        catch (...)
+        {
+            handle_failure<true>(std::move(message));
+        }
+    }
+    constexpr void require_throws(auto&& functor, std::string message = default_message())
+    {
+        bool threw = false;
+        try
+        {
+            std::invoke(std::forward<decltype(functor)>(functor));
+        }
+        catch (...)
+        {
+            threw = true;
+        }
+        if (!threw)
+        {
+            handle_failure<true>(std::move(message));
         }
     }
 

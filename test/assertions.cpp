@@ -32,6 +32,46 @@ constexpr void check_then_require(auto& ctx)
     ctx.check(false);
 }
 
+constexpr void check_nothrow(jtest::TestContext& ctx)
+{
+    ctx.check_nothrow([] {}, "Success");
+    ctx.check_nothrow(
+        []
+        {
+            throw 1;
+        },
+        "Failure");
+    ctx.require_nothrow([] {}, "ReqSuccess");
+    ctx.require_nothrow(
+        []
+        {
+            throw 1;
+        },
+        "ReqFailure");
+    ctx.check(false, "Unreachable");
+}
+
+constexpr void check_throws(jtest::TestContext& ctx)
+{
+    ctx.check_throws(
+        []
+        {
+            throw 1;
+        },
+        "Success");
+    ctx.check_throws([] {}, "Failure");
+
+    ctx.require_throws(
+        []
+        {
+            throw 1;
+        },
+        "ReqSuccess");
+    ctx.require_throws([] {}, "ReqFailure");
+
+    ctx.check(false, "Unreachable");
+}
+
 } // namespace tests
 
 } // namespace
@@ -41,7 +81,7 @@ void test_assertions()
     jtest::TestGroup<^^tests> group{jtest::skip_registration};
     auto results = jtest::run_group(group);
 
-    REQUIRE(results.test_results.size() == 4, "Expected 4 tests to run");
+    REQUIRE(results.test_results.size() == 6, "Expected 6 tests to run");
 
     {
         auto& [ct, rt] = results.test_results.at("check_rt");
@@ -70,6 +110,28 @@ void test_assertions()
         auto check = [](auto& result)
         {
             REQUIRE(result.value().errors.size() == 2, "check_then_require expects 2 failures");
+        };
+        check(ct);
+        check(rt);
+    }
+
+    {
+        auto& [ct, rt] = results.test_results.at("check_nothrow");
+        auto check = [](auto& result)
+        {
+            auto equal = std::ranges::equal(result.value().errors, std::vector<std::string>{"Failure", "ReqFailure"});
+            REQUIRE(equal, "check_nothrow expects 2 specific failures");
+        };
+        check(ct);
+        check(rt);
+    }
+
+    {
+        auto& [ct, rt] = results.test_results.at("check_throws");
+        auto check = [](auto& result)
+        {
+            auto equal = std::ranges::equal(result.value().errors, std::vector<std::string>{"Failure", "ReqFailure"});
+            REQUIRE(equal, "check_throws expects 2 specific failures");
         };
         check(ct);
         check(rt);
