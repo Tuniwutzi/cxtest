@@ -324,6 +324,7 @@ public:
         return name;
     }
 
+    // TODO: This is not clean; it exposes a detail:: type in a public interface
     std::span<const detail::Test> get_tests() const noexcept
     {
         return tests;
