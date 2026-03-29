@@ -13,6 +13,11 @@ target_compile_options(jtest PUBLIC
 )
 target_include_directories(jtest PUBLIC src)
 
+add_library(jtest_main STATIC
+    src/jtest/jtest_main.cpp
+)
+target_link_libraries(jtest_main PUBLIC jtest)
+
 if (JTEST_BUILD_TESTS)
 add_executable(jtest_tests
     test/main.cpp
