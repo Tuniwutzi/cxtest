@@ -18,7 +18,7 @@ consteval void main_2(jtest::CTContext& ctx)
 {
     ctx.check(std::is_constant_evaluated());
 }
-constexpr void main_3(auto& ctx)
+constexpr void main_3(jtest::Context& ctx)
 {
     ctx.check(false);
 }
@@ -31,8 +31,10 @@ jtest::Registration group_registration{jtest::group_tests<^^multi_tu_main>("mult
 
 void test_multi_tu()
 {
-    auto results = jtest::run_registered_tests();
-    REQUIRE(results.size() == 2, "Expected registered tests accross multiple TUs to be found");
+    jtest::CollectingRunOutputSink sink{};
+    jtest::run_registered_tests(sink);
+    REQUIRE(sink.groups.size() == 2, "Expected registered tests accross multiple TUs to be found");
+    auto& results = sink.groups;
 
     auto get_test = [&](auto& results, const std::string& name) -> auto&
     {
@@ -40,11 +42,11 @@ void test_multi_tu()
         REQUIRE(pos != results.end(), std::format("Results must contain {}", name));
         return *pos;
     };
-    auto check_success = [](const std::pair<std::string, jtest::results::Test>& pair)
+    auto check_success = [](const std::pair<std::string, jtest::CollectingGroupOutputSink::TestResult>& pair)
     {
         auto& [name, result] = pair;
-        REQUIRE((!result.compiletime || result.compiletime->errors.empty()) &&
-                    (!result.runtime || result.runtime->errors.empty()),
+        REQUIRE((!result.ct_sink || result.ct_sink->errors.empty()) &&
+                    (!result.rt_sink || result.rt_sink->errors.empty()),
                 std::format("Test {} must succeed", name));
     };
 
@@ -54,8 +56,8 @@ void test_multi_tu()
     check_success(get_test(main_pos->second.tests, "main_1"));
     check_success(get_test(main_pos->second.tests, "main_2"));
     auto& main_3 = get_test(main_pos->second.tests, "main_3");
-    REQUIRE(main_3.second.compiletime && main_3.second.compiletime->errors.size() == 1 && main_3.second.runtime &&
-                main_3.second.runtime->errors.size() == 1,
+    REQUIRE(main_3.second.ct_sink && main_3.second.ct_sink->errors.size() == 1 && main_3.second.rt_sink &&
+                main_3.second.rt_sink->errors.size() == 1,
             "Test main_3 must fail");
 
     auto side_pos = results.find("multi_tu_side");
@@ -64,7 +66,7 @@ void test_multi_tu()
     check_success(get_test(side_pos->second.tests, "side_1"));
     check_success(get_test(side_pos->second.tests, "side_2"));
     auto& side_3 = get_test(side_pos->second.tests, "side_3");
-    REQUIRE(side_3.second.compiletime && side_3.second.compiletime->errors.size() == 1 && side_3.second.runtime &&
-                side_3.second.runtime->errors.size() == 1,
+    REQUIRE(side_3.second.ct_sink && side_3.second.ct_sink->errors.size() == 1 && side_3.second.rt_sink &&
+                side_3.second.rt_sink->errors.size() == 1,
             "Test side_3 must fail");
 }

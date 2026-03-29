@@ -18,14 +18,10 @@ namespace invalid
 // Ask to execute at compiletime without constexpr or consteval
 // void comptime(jtest::CTContext& ctx) {}
 // void comptime(jtest::Context& ctx) {}
-// void comptime(std::same_as<jtest::CTContext> auto& ctx) {}
-// void comptime(auto& ctx) {}
 
 // Ask to execute at runtime with consteval
 // consteval void runtime(jtest::RTContext& ctx) {}
 // consteval void runtime(jtest::Context& ctx) {}
-// consteval void runtime(std::same_as<jtest::RTContext> auto& ctx) {}
-// consteval void runtime(auto& ctx) {}
 
 } // namespace invalid
 
@@ -40,20 +36,11 @@ namespace valid
 {
 // Constexpr can request anything:
 constexpr void cx_both_1(jtest::Context& ctx) {}
-constexpr void cx_both_2(auto& ctx) {}
 constexpr void cx_ct_1(jtest::CTContext& ctx)
 {
     ctx.check(std::is_constant_evaluated());
 }
-constexpr void cx_ct_2(std::same_as<jtest::CTContext> auto& ctx)
-{
-    ctx.check(std::is_constant_evaluated());
-}
 constexpr void cx_rt_1(jtest::RTContext& ctx)
-{
-    ctx.check(!std::is_constant_evaluated());
-}
-constexpr void cx_rt_2(std::same_as<jtest::RTContext> auto& ctx)
 {
     ctx.check(!std::is_constant_evaluated());
 }
@@ -63,17 +50,9 @@ consteval void ce_1(jtest::CTContext& ctx)
 {
     ctx.check(std::is_constant_evaluated());
 }
-consteval void ce_2(std::same_as<jtest::CTContext> auto& ctx)
-{
-    ctx.check(std::is_constant_evaluated());
-}
 
 // Without consteval or constexpr we can only request runtime execution:
 void rt_1(jtest::RTContext& ctx)
-{
-    ctx.check(!std::is_constant_evaluated());
-}
-void rt_2(std::same_as<jtest::RTContext> auto& ctx)
 {
     ctx.check(!std::is_constant_evaluated());
 }
@@ -82,9 +61,10 @@ void rt_2(std::same_as<jtest::RTContext> auto& ctx)
 void test_valid()
 {
     auto valid_group = jtest::group_tests<^^valid>();
-    auto results = jtest::run_group(valid_group);
-    REQUIRE(results.tests.size() == 10, "Unexpected number of tests ran");
-    for (const auto& [name, result] : results.tests)
+    jtest::CollectingGroupOutputSink sink{};
+    jtest::run_group(valid_group, sink);
+    REQUIRE(sink.tests.size() == 5, "Unexpected number of tests ran");
+    for (const auto& [name, result] : sink.tests)
     {
         const auto& [ct, rt] = result;
         if (name.starts_with("cx_both"))

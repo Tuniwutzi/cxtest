@@ -16,7 +16,7 @@ consteval void side_2(jtest::CTContext& ctx)
 {
     ctx.check(std::is_constant_evaluated());
 }
-constexpr void side_3(auto& ctx)
+constexpr void side_3(jtest::Context& ctx)
 {
     ctx.check(false);
 }

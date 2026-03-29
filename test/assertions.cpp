@@ -8,24 +8,24 @@ namespace
 namespace tests
 {
 
-constexpr void check_rt(auto& ctx)
+constexpr void check_rt(jtest::Context& ctx)
 {
     ctx.check(!std::is_constant_evaluated());
 }
 
-constexpr void check_ct(auto& ctx)
+constexpr void check_ct(jtest::Context& ctx)
 {
     ctx.check(std::is_constant_evaluated());
 }
 
-constexpr void check_multiple_failures(auto& ctx)
+constexpr void check_multiple_failures(jtest::Context& ctx)
 {
     ctx.check(false);
     ctx.check(false);
     ctx.check(false);
 }
 
-constexpr void check_then_require(auto& ctx)
+constexpr void check_then_require(jtest::Context& ctx)
 {
     ctx.check(false);
     ctx.require(false);
@@ -79,24 +79,25 @@ constexpr void check_throws(jtest::Context& ctx)
 void test_assertions()
 {
     auto group = jtest::group_tests<^^tests>();
-    auto results = jtest::run_group(group);
+    jtest::CollectingGroupOutputSink sink{};
+    jtest::run_group(group, sink);
 
-    REQUIRE(results.tests.size() == 6, "Expected 6 tests to run");
+    REQUIRE(sink.tests.size() == 6, "Expected 6 tests to run");
 
     {
-        auto& [ct, rt] = results.tests.at("check_rt");
+        auto& [ct, rt] = sink.tests.at("check_rt");
         REQUIRE(rt.value().errors.empty() && !ct.value().errors.empty(),
                 "check_rt should succeed at runtime and fail at compiletime");
     }
 
     {
-        auto& [ct, rt] = results.tests.at("check_ct");
+        auto& [ct, rt] = sink.tests.at("check_ct");
         REQUIRE(!rt.value().errors.empty() && ct.value().errors.empty(),
                 "check_rt should succeed at runtime and fail at compiletime");
     }
 
     {
-        auto& [ct, rt] = results.tests.at("check_multiple_failures");
+        auto& [ct, rt] = sink.tests.at("check_multiple_failures");
         auto check = [](auto& result)
         {
             REQUIRE(result.value().errors.size() == 3, "check_multiple_failures expects 3 failures");
@@ -106,7 +107,7 @@ void test_assertions()
     }
 
     {
-        auto& [ct, rt] = results.tests.at("check_then_require");
+        auto& [ct, rt] = sink.tests.at("check_then_require");
         auto check = [](auto& result)
         {
             REQUIRE(result.value().errors.size() == 2, "check_then_require expects 2 failures");
@@ -116,7 +117,7 @@ void test_assertions()
     }
 
     {
-        auto& [ct, rt] = results.tests.at("check_nothrow");
+        auto& [ct, rt] = sink.tests.at("check_nothrow");
         auto check = [](auto& result)
         {
             auto equal = std::ranges::equal(result.value().errors, std::vector<std::string>{"Failure", "ReqFailure"});
@@ -127,7 +128,7 @@ void test_assertions()
     }
 
     {
-        auto& [ct, rt] = results.tests.at("check_throws");
+        auto& [ct, rt] = sink.tests.at("check_throws");
         auto check = [](auto& result)
         {
             auto equal = std::ranges::equal(result.value().errors, std::vector<std::string>{"Failure", "ReqFailure"});

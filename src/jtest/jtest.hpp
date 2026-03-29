@@ -3,6 +3,7 @@
 #include <charconv>
 #include <format>
 #include <functional>
+#include <iostream>
 #include <list>
 #include <meta>
 #include <ranges>
@@ -14,23 +15,108 @@
 namespace jtest
 {
 
-namespace results
+struct TestOutputSink
 {
+    constexpr virtual ~TestOutputSink() = default;
 
-struct Runtime
+    constexpr virtual void error(std::string_view message) = 0;
+    // template<typename... Args>
+    // constexpr void error(std::format_string<Args...> format, Args&&... args)
+    // {
+    //     error(std::format(format, std::forward<Args>(args)...));
+    // }
+};
+
+struct GroupOutputSink
+{
+    constexpr virtual ~GroupOutputSink() = default;
+
+    virtual TestOutputSink& start_test(std::string_view name, bool compiletime) = 0;
+};
+
+struct RunOutputSink
+{
+    constexpr virtual ~RunOutputSink() = default;
+    virtual GroupOutputSink& start_group(std::string_view name, size_t tests) = 0;
+};
+
+struct PrintingRunOutputSink : RunOutputSink, GroupOutputSink, TestOutputSink
+{
+    bool failed = false;
+    GroupOutputSink& start_group(std::string_view name, size_t tests) final
+    {
+        std::cout << std::format("Executing group {} with {} tests", name, tests) << std::endl;
+        return *this;
+    }
+    TestOutputSink& start_test(std::string_view name, bool compiletime) final
+    {
+        if (compiletime)
+        {
+            std::cout << std::format("Results of test {} at compiletime", name) << std::endl;
+        }
+        else
+        {
+            std::cout << std::format("Executing test {} at runtime", name) << std::endl;
+        }
+        return *this;
+    }
+    constexpr void error(std::string_view message) final
+    {
+        failed = true;
+        std::cout << "\t" << message << std::endl;
+    }
+};
+
+struct CollectingTestOutputSink : TestOutputSink
 {
     std::vector<std::string> errors;
+    constexpr void error(std::string_view message) final
+    {
+        errors.emplace_back(message);
+    }
 };
 
-struct Compiletime
+struct CollectingGroupOutputSink : GroupOutputSink
 {
-    std::span<const char* const> errors;
+    struct TestResult
+    {
+        std::optional<CollectingTestOutputSink> ct_sink;
+        std::optional<CollectingTestOutputSink> rt_sink;
+    };
+    std::unordered_map<std::string, TestResult> tests;
+
+    constexpr TestOutputSink& start_test(std::string_view name, bool compiletime) final
+    {
+        auto& test = tests[std::string{name}];
+
+        if (compiletime)
+        {
+            return test.ct_sink.emplace();
+        }
+        else
+        {
+            return test.rt_sink.emplace();
+        }
+    }
 };
 
-} // namespace results
+struct CollectingRunOutputSink : RunOutputSink
+{
+    std::unordered_map<std::string, CollectingGroupOutputSink> groups;
+
+    constexpr GroupOutputSink& start_group(std::string_view name, size_t tests) final
+    {
+        return groups[std::string{name}];
+    }
+};
 
 namespace detail
 {
+
+struct CompiletimeResults
+{
+    std::span<const char* const> errors;
+};
 
 struct RequireFailed
 {
@@ -63,7 +149,7 @@ private:
     template<bool throws>
     constexpr void handle_failure(std::string&& message) noexcept(!throws)
     {
-        result.errors.push_back(std::move(message));
+        _sink.error(message);
         if constexpr (throws)
         {
             throw detail::RequireFailed{};
@@ -139,26 +225,29 @@ public:
     }
 
 protected:
-    Context() = default;
+    constexpr Context(TestOutputSink& sink)
+        : _sink(sink)
+    {
+    }
 
-    results::Runtime result;
+    TestOutputSink& _sink;
 };
 
 class CTContext : public Context
 {
 public:
-    consteval CTContext() = default;
-    consteval const results::Runtime& get_result() const noexcept
+    // Make sure it can only be constructed at compiletime
+    consteval CTContext(TestOutputSink& sink)
+        : Context{sink}
     {
-        return result;
     }
 };
 
 class RTContext : public Context
 {
 public:
-    RTContext();
-    const results::Runtime& get_result() const noexcept;
+    // Make sure it can only be constructed at runtime
+    RTContext(TestOutputSink& sink);
 };
 
 namespace detail
@@ -183,14 +272,14 @@ struct RuntimeTestImpl : RuntimeTest
 struct Test
 {
     const char* name;
-    std::optional<results::Compiletime> compiletime_result = {};
+    std::optional<std::span<const char* const>> compiletime_errors = {};
     const RuntimeTest* runtime_test = nullptr;
 };
 
 template<typename Context>
-constexpr results::Runtime execute_test(auto&& test)
+constexpr void execute_test(auto&& test, TestOutputSink& sink)
 {
-    Context context{};
+    Context context{sink};
     try
     {
         test(context);
@@ -198,84 +287,27 @@ constexpr results::Runtime execute_test(auto&& test)
     catch (const detail::RequireFailed&)
     {
     }
-    return context.get_result();
 }
 
 template<std::meta::info info>
 void discover_tests(std::string_view group_name, std::vector<Test>& tests)
 {
-    auto add_test = [&](detail::Test test)
-    {
-        test.name = std::define_static_string(identifier_of(info));
-        for (const detail::Test& existing : tests)
-        {
-            if (test.name == existing.name)
-            {
-                throw std::runtime_error{
-                    std::format("Test with name {} already exists in group {}", test.name, group_name)};
-            }
-        }
-        tests.push_back(std::move(test));
-    };
-    if constexpr (is_template(info))
-    {
-        detail::Test test;
-        if constexpr (constexpr auto compiletime_test = [] consteval -> std::optional<std::meta::info>
-                      {
-                          try
-                          {
-                              return substitute(info, {^^CTContext});
-                          }
-                          catch (...)
-                          {
-                              return std::nullopt;
-                          }
-                      }())
-        {
-
-            constexpr auto result =
-                std::define_static_array(detail::execute_test<CTContext>([:*compiletime_test:]).errors |
-                                         std::views::transform(
-                                             [](auto& string)
-                                             {
-                                                 return std::define_static_string(string);
-                                             }));
-            test.compiletime_result = results::Compiletime{.errors = result};
-        }
-
-        if constexpr (constexpr auto runtime_test = [] consteval -> std::optional<std::meta::info>
-                      {
-                          try
-                          {
-                              return substitute(info, {^^RTContext});
-                          }
-                          catch (...)
-                          {
-                              return std::nullopt;
-                          }
-                      }())
-        {
-            static constexpr detail::RuntimeTestImpl<([:*runtime_test:])> runner{};
-            test.runtime_test = &runner;
-        }
-
-        if (test.compiletime_result || test.runtime_test)
-        {
-            add_test(std::move(test));
-        }
-    }
-    else if constexpr (is_function(info))
+    if constexpr (is_function(info))
     {
         detail::Test test;
         if constexpr (std::is_invocable_v<decltype([:info:]), CTContext&>)
         {
-            constexpr auto result = std::define_static_array(detail::execute_test<CTContext>([:info:]).errors |
-                                                             std::views::transform(
-                                                                 [](auto& string)
-                                                                 {
-                                                                     return std::define_static_string(string);
-                                                                 }));
-            test.compiletime_result = results::Compiletime{.errors = result};
+            constexpr auto result = [&] consteval
+            {
+                CollectingTestOutputSink sink;
+                detail::execute_test<CTContext>([:info:], sink);
+                return std::define_static_array(sink.errors | std::views::transform(
+                                                                  [](auto& string)
+                                                                  {
+                                                                      return std::define_static_string(string);
+                                                                  }));
+            }();
+            test.compiletime_errors = result;
         }
         if constexpr (std::is_invocable_v<decltype([:info:]), RTContext&>)
         {
@@ -283,9 +315,18 @@ void discover_tests(std::string_view group_name, std::vector<Test>& tests)
             test.runtime_test = &runner;
         }
 
-        if (test.compiletime_result || test.runtime_test)
+        if (test.compiletime_errors || test.runtime_test)
         {
-            add_test(std::move(test));
+            test.name = std::define_static_string(identifier_of(info));
+            for (const detail::Test& existing : tests)
+            {
+                if (test.name == existing.name)
+                {
+                    throw std::runtime_error{
+                        std::format("Test with name {} already exists in group {}", test.name, group_name)};
+                }
+            }
+            tests.push_back(std::move(test));
         }
     }
     else if constexpr (is_namespace(info))
@@ -377,25 +418,7 @@ Registration register_tests(std::string name = Group::default_name())
     return {group_tests<test_or_namespace>(std::move(name))};
 }
 
-namespace results
-{
-struct Test
-{
-    std::optional<Compiletime> compiletime;
-    std::optional<Runtime> runtime;
-};
-
-struct Group
-{
-    std::unordered_map<std::string, Test> tests;
-};
-
-} // namespace results
-
-results::Group run_group(const Group& group) noexcept;
-std::unordered_map<std::string, results::Group> run_registered_tests() noexcept;
-void print_results(const results::Test& test);
-void print_results(const results::Group& group);
-void print_results(const std::unordered_map<std::string, results::Group>& groups);
+void run_group(const Group& group, GroupOutputSink& sink) noexcept;
+void run_registered_tests(RunOutputSink& sink) noexcept;
 
 } // namespace jtest
