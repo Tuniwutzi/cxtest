@@ -3,7 +3,6 @@
 #include <charconv>
 #include <format>
 #include <functional>
-#include <iostream>
 #include <list>
 #include <meta>
 #include <ranges>
@@ -38,28 +37,9 @@ struct RunOutputSink
 struct PrintingRunOutputSink : RunOutputSink, GroupOutputSink, TestOutputSink
 {
     bool failed = false;
-    GroupOutputSink& start_group(std::string_view name, size_t tests) final
-    {
-        std::cout << std::format("Executing group {} with {} tests", name, tests) << std::endl;
-        return *this;
-    }
-    TestOutputSink& start_test(std::string_view name, bool compiletime) final
-    {
-        if (compiletime)
-        {
-            std::cout << std::format("Results of test {} at compiletime", name) << std::endl;
-        }
-        else
-        {
-            std::cout << std::format("Executing test {} at runtime", name) << std::endl;
-        }
-        return *this;
-    }
-    constexpr void error(std::string_view message) final
-    {
-        failed = true;
-        std::cout << "\t" << message << std::endl;
-    }
+    GroupOutputSink& start_group(std::string_view name, size_t tests) final;
+    TestOutputSink& start_test(std::string_view name, bool compiletime) final;
+    void error(std::string_view message) final;
 };
 
 struct CollectingTestOutputSink : TestOutputSink
@@ -339,15 +319,9 @@ void discover_tests(std::string_view group_name, std::vector<Test>& tests)
 class [[nodiscard]] Group
 {
 public:
-    static std::string default_name(std::source_location loc = std::source_location::current())
-    {
-        return std::format("{}:{}", loc.file_name(), loc.line());
-    }
+    static std::string default_name(std::source_location loc = std::source_location::current());
 
-    Group(std::string name = default_name())
-        : name{std::move(name)}
-    {
-    }
+    Group(std::string name = default_name());
 
     template<std::meta::info test_or_namespace>
     void add()
@@ -355,16 +329,10 @@ public:
         detail::discover_tests<test_or_namespace>(name, tests);
     }
 
-    std::string_view get_name() const noexcept
-    {
-        return name;
-    }
+    std::string_view get_name() const noexcept;
 
     // TODO: This is not clean; it exposes a detail:: type in a public interface
-    std::span<const detail::Test> get_tests() const noexcept
-    {
-        return tests;
-    }
+    std::span<const detail::Test> get_tests() const noexcept;
 
 private:
     std::string name;
@@ -379,24 +347,10 @@ Group group_tests(std::string name = Group::default_name())
     return group;
 }
 
-namespace detail
-{
-extern std::list<Group> registrations;
-}
-
 struct [[nodiscard]] Registration
 {
-    Registration(Group group)
-        : position{[&group]
-                   {
-                       return detail::registrations.insert(detail::registrations.end(), std::move(group));
-                   }()}
-    {
-    }
-    ~Registration()
-    {
-        detail::registrations.erase(position);
-    }
+    Registration(Group group);
+    ~Registration();
 
     Registration(const Registration&) = delete;
     Registration& operator=(const Registration&) = delete;
