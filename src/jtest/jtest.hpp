@@ -20,11 +20,6 @@ struct TestOutputSink
     constexpr virtual ~TestOutputSink() = default;
 
     constexpr virtual void error(std::string_view message) = 0;
-    // template<typename... Args>
-    // constexpr void error(std::format_string<Args...> format, Args&&... args)
-    // {
-    //     error(std::format(format, std::forward<Args>(args)...));
-    // }
 };
 
 struct GroupOutputSink
