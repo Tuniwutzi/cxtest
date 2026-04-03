@@ -341,7 +341,7 @@ void discover_tests(std::string_view group_name, std::vector<Test>& tests)
 
 } // namespace detail
 
-class Group
+class [[nodiscard]] Group
 {
 public:
     static std::string default_name(std::source_location loc = std::source_location::current())
