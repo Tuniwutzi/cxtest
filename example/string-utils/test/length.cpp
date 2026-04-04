@@ -9,7 +9,7 @@ namespace
 
 namespace length
 {
-constexpr void success(cxtest::Context& ctx)
+constexpr void success(cxt::Context& ctx)
 {
     ctx.check(string_utils::strlen("") == 0);
 
@@ -17,7 +17,7 @@ constexpr void success(cxtest::Context& ctx)
     ctx.check(string_utils::strlen("abcd") == 4);
 }
 
-constexpr void error(cxtest::Context& ctx)
+constexpr void error(cxt::Context& ctx)
 {
     ctx.check_throws(
         []
@@ -28,6 +28,6 @@ constexpr void error(cxtest::Context& ctx)
 
 } // namespace length
 
-auto _ = cxtest::register_tests<^^length>("strlen");
+auto _ = cxt::register_tests<^^length>("strlen");
 
 } // namespace

@@ -370,3 +370,7 @@ void run_group(const Group& group, GroupOutputSink& sink) noexcept;
 void run_registered_tests(RunOutputSink& sink) noexcept;
 
 } // namespace cxtest
+
+#ifdef CXTEST_NAMESPACE_ABBREVIATION
+namespace CXTEST_NAMESPACE_ABBREVIATION = cxtest;
+#endif
