@@ -4,7 +4,6 @@ project(cxtest)
 
 option(CXTEST_BUILD_TESTS "Whether to include tests for cxtest" ${PROJECT_IS_TOP_LEVEL})
 option(CXTEST_BUILD_EXAMPLES "Whether to include examples for cxtest" ${PROJECT_IS_TOP_LEVEL})
-set(CXTEST_NAMESPACE_ABBREVIATION "cxt" CACHE STRING "A shorthand to define for the cxtest namespace - empty to define none")
 
 add_library(cxtest STATIC
     src/cxtest/cxtest.cpp
@@ -14,9 +13,6 @@ target_compile_options(cxtest PUBLIC
     "-freflection"
 )
 target_include_directories(cxtest PUBLIC src)
-if(NOT CXTEST_NAMESPACE_ABBREVIATION STREQUAL "")
-    target_compile_definitions(cxtest PUBLIC "CXTEST_NAMESPACE_ABBREVIATION=${CXTEST_NAMESPACE_ABBREVIATION}")
-endif()
 
 add_library(cxtest_main STATIC
     src/cxtest/cxtest_main.cpp
