@@ -1,30 +1,30 @@
 cmake_minimum_required(VERSION 3.31.0)
 
-project(jtest)
+project(cxtest)
 
-option(JTEST_BUILD_TESTS "Whether to include tests for jtest" Off)
+option(CXTEST_BUILD_TESTS "Whether to include tests for cxtest" Off)
 
-add_library(jtest STATIC
-    src/jtest/jtest.cpp
+add_library(cxtest STATIC
+    src/cxtest/cxtest.cpp
 )
-target_compile_features(jtest PUBLIC cxx_std_26)
-target_compile_options(jtest PUBLIC
+target_compile_features(cxtest PUBLIC cxx_std_26)
+target_compile_options(cxtest PUBLIC
     "-freflection"
 )
-target_include_directories(jtest PUBLIC src)
+target_include_directories(cxtest PUBLIC src)
 
-add_library(jtest_main STATIC
-    src/jtest/jtest_main.cpp
+add_library(cxtest_main STATIC
+    src/cxtest/cxtest_main.cpp
 )
-target_link_libraries(jtest_main PUBLIC jtest)
+target_link_libraries(cxtest_main PUBLIC cxtest)
 
-if (JTEST_BUILD_TESTS)
-add_executable(jtest_tests
+if (CXTEST_BUILD_TESTS)
+add_executable(cxtest_tests
     test/main.cpp
     test/execution.cpp
     test/multi_tu_side.cpp
     test/multi_tu_main.cpp
     test/assertions.cpp
 )
-target_link_libraries(jtest_tests PRIVATE jtest)
+target_link_libraries(cxtest_tests PRIVATE cxtest)
 endif()

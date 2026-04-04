@@ -1,6 +1,6 @@
 /// This file tests execution of specific tests at runtime, compiletime or both.
 
-#include <jtest/jtest.hpp>
+#include <cxtest/cxtest.hpp>
 
 #include "check.hpp"
 
@@ -16,18 +16,18 @@ namespace invalid
 // These tests should fail compilation in ways we can't catch and diagnose
 
 // Ask to execute at compiletime without constexpr or consteval
-// void comptime(jtest::CTContext& ctx) {}
-// void comptime(jtest::Context& ctx) {}
+// void comptime(cxtest::CTContext& ctx) {}
+// void comptime(cxtest::Context& ctx) {}
 
 // Ask to execute at runtime with consteval
-// consteval void runtime(jtest::RTContext& ctx) {}
-// consteval void runtime(jtest::Context& ctx) {}
+// consteval void runtime(cxtest::RTContext& ctx) {}
+// consteval void runtime(cxtest::Context& ctx) {}
 
 } // namespace invalid
 
 void test_invalid()
 {
-    auto invalid_group = jtest::group_tests<^^invalid>();
+    auto invalid_group = cxtest::group_tests<^^invalid>();
     REQUIRE(invalid_group.get_tests().size() == 0,
             "There should not be tests in the invalid group, uncommenting them should cause compiler errors");
 }
@@ -35,24 +35,24 @@ void test_invalid()
 namespace valid
 {
 // Constexpr can request anything:
-constexpr void cx_both_1(jtest::Context& ctx) {}
-constexpr void cx_ct_1(jtest::CTContext& ctx)
+constexpr void cx_both_1(cxtest::Context& ctx) {}
+constexpr void cx_ct_1(cxtest::CTContext& ctx)
 {
     ctx.check(std::is_constant_evaluated());
 }
-constexpr void cx_rt_1(jtest::RTContext& ctx)
+constexpr void cx_rt_1(cxtest::RTContext& ctx)
 {
     ctx.check(!std::is_constant_evaluated());
 }
 
 // Consteval can request only compiletime execution:
-consteval void ce_1(jtest::CTContext& ctx)
+consteval void ce_1(cxtest::CTContext& ctx)
 {
     ctx.check(std::is_constant_evaluated());
 }
 
 // Without consteval or constexpr we can only request runtime execution:
-void rt_1(jtest::RTContext& ctx)
+void rt_1(cxtest::RTContext& ctx)
 {
     ctx.check(!std::is_constant_evaluated());
 }
@@ -60,9 +60,9 @@ void rt_1(jtest::RTContext& ctx)
 
 void test_valid()
 {
-    auto valid_group = jtest::group_tests<^^valid>();
-    jtest::CollectingGroupOutputSink sink{};
-    jtest::run_group(valid_group, sink);
+    auto valid_group = cxtest::group_tests<^^valid>();
+    cxtest::CollectingGroupOutputSink sink{};
+    cxtest::run_group(valid_group, sink);
     REQUIRE(sink.tests.size() == 5, "Unexpected number of tests ran");
     for (const auto& [name, result] : sink.tests)
     {

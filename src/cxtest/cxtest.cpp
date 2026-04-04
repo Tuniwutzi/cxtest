@@ -1,8 +1,8 @@
-#include "jtest.hpp"
+#include "cxtest.hpp"
 
 #include <iostream>
 
-namespace jtest
+namespace cxtest
 {
 
 GroupOutputSink& PrintingRunOutputSink::start_group(std::string_view name, size_t tests)
@@ -103,4 +103,4 @@ void run_registered_tests(RunOutputSink& sink) noexcept
     }
 }
 
-} // namespace jtest
+} // namespace cxtest

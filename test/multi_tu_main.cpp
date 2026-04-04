@@ -1,4 +1,4 @@
-#include <jtest/jtest.hpp>
+#include <cxtest/cxtest.hpp>
 
 #include "check.hpp"
 
@@ -10,29 +10,29 @@ namespace
 namespace multi_tu_main
 {
 
-void main_1(jtest::RTContext& ctx)
+void main_1(cxtest::RTContext& ctx)
 {
     ctx.check(!std::is_constant_evaluated());
 }
-consteval void main_2(jtest::CTContext& ctx)
+consteval void main_2(cxtest::CTContext& ctx)
 {
     ctx.check(std::is_constant_evaluated());
 }
-constexpr void main_3(jtest::Context& ctx)
+constexpr void main_3(cxtest::Context& ctx)
 {
     ctx.check(false);
 }
 
 } // namespace multi_tu_main
 
-jtest::Registration group_registration{jtest::group_tests<^^multi_tu_main>("multi_tu_main")};
+cxtest::Registration group_registration{cxtest::group_tests<^^multi_tu_main>("multi_tu_main")};
 
 } // namespace
 
 void test_multi_tu()
 {
-    jtest::CollectingRunOutputSink sink{};
-    jtest::run_registered_tests(sink);
+    cxtest::CollectingRunOutputSink sink{};
+    cxtest::run_registered_tests(sink);
     REQUIRE(sink.groups.size() == 2, "Expected registered tests accross multiple TUs to be found");
     auto& results = sink.groups;
 
@@ -42,7 +42,7 @@ void test_multi_tu()
         REQUIRE(pos != results.end(), std::format("Results must contain {}", name));
         return *pos;
     };
-    auto check_success = [](const std::pair<std::string, jtest::CollectingGroupOutputSink::TestResult>& pair)
+    auto check_success = [](const std::pair<std::string, cxtest::CollectingGroupOutputSink::TestResult>& pair)
     {
         auto& [name, result] = pair;
         REQUIRE((!result.ct_sink || result.ct_sink->errors.empty()) &&

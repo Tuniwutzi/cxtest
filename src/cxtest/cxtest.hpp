@@ -10,7 +10,7 @@
 #include <unordered_map>
 #include <vector>
 
-namespace jtest
+namespace cxtest
 {
 
 struct TestOutputSink
@@ -369,4 +369,4 @@ Registration register_tests(std::string name = Group::default_name())
 void run_group(const Group& group, GroupOutputSink& sink) noexcept;
 void run_registered_tests(RunOutputSink& sink) noexcept;
 
-} // namespace jtest
+} // namespace cxtest

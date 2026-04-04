@@ -1,4 +1,4 @@
-#include <jtest/jtest.hpp>
+#include <cxtest/cxtest.hpp>
 
 #include "check.hpp"
 
@@ -8,31 +8,31 @@ namespace
 namespace tests
 {
 
-constexpr void check_rt(jtest::Context& ctx)
+constexpr void check_rt(cxtest::Context& ctx)
 {
     ctx.check(!std::is_constant_evaluated());
 }
 
-constexpr void check_ct(jtest::Context& ctx)
+constexpr void check_ct(cxtest::Context& ctx)
 {
     ctx.check(std::is_constant_evaluated());
 }
 
-constexpr void check_multiple_failures(jtest::Context& ctx)
+constexpr void check_multiple_failures(cxtest::Context& ctx)
 {
     ctx.check(false);
     ctx.check(false);
     ctx.check(false);
 }
 
-constexpr void check_then_require(jtest::Context& ctx)
+constexpr void check_then_require(cxtest::Context& ctx)
 {
     ctx.check(false);
     ctx.require(false);
     ctx.check(false);
 }
 
-constexpr void check_nothrow(jtest::Context& ctx)
+constexpr void check_nothrow(cxtest::Context& ctx)
 {
     ctx.check_nothrow([] {}, "Success");
     ctx.check_nothrow(
@@ -51,7 +51,7 @@ constexpr void check_nothrow(jtest::Context& ctx)
     ctx.check(false, "Unreachable");
 }
 
-constexpr void check_throws(jtest::Context& ctx)
+constexpr void check_throws(cxtest::Context& ctx)
 {
     ctx.check_throws(
         []
@@ -78,9 +78,9 @@ constexpr void check_throws(jtest::Context& ctx)
 
 void test_assertions()
 {
-    auto group = jtest::group_tests<^^tests>();
-    jtest::CollectingGroupOutputSink sink{};
-    jtest::run_group(group, sink);
+    auto group = cxtest::group_tests<^^tests>();
+    cxtest::CollectingGroupOutputSink sink{};
+    cxtest::run_group(group, sink);
 
     REQUIRE(sink.tests.size() == 6, "Expected 6 tests to run");
 

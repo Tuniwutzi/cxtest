@@ -1,4 +1,4 @@
-#include <jtest/jtest.hpp>
+#include <cxtest/cxtest.hpp>
 
 #include <string-utils.hpp>
 
@@ -9,7 +9,7 @@ namespace
 
 namespace length
 {
-constexpr void success(jtest::Context& ctx)
+constexpr void success(cxtest::Context& ctx)
 {
     ctx.check(string_utils::strlen("") == 0);
 
@@ -17,7 +17,7 @@ constexpr void success(jtest::Context& ctx)
     ctx.check(string_utils::strlen("abcd") == 4);
 }
 
-constexpr void error(jtest::Context& ctx)
+constexpr void error(cxtest::Context& ctx)
 {
     ctx.check_throws(
         []
@@ -28,6 +28,6 @@ constexpr void error(jtest::Context& ctx)
 
 } // namespace length
 
-auto _ = jtest::register_tests<^^length>("strlen");
+auto _ = cxtest::register_tests<^^length>("strlen");
 
 } // namespace
