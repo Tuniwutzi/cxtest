@@ -2,7 +2,8 @@ cmake_minimum_required(VERSION 3.31.0)
 
 project(cxtest)
 
-option(CXTEST_BUILD_TESTS "Whether to include tests for cxtest" Off)
+option(CXTEST_BUILD_TESTS "Whether to include tests for cxtest" ${PROJECT_IS_TOP_LEVEL})
+option(CXTEST_BUILD_EXAMPLES "Whether to include examples for cxtest" ${PROJECT_IS_TOP_LEVEL})
 set(CXTEST_NAMESPACE_ABBREVIATION "cxt" CACHE STRING "A shorthand to define for the cxtest namespace - empty to define none")
 
 add_library(cxtest STATIC
@@ -31,4 +32,8 @@ add_executable(cxtest_tests
     test/assertions.cpp
 )
 target_link_libraries(cxtest_tests PRIVATE cxtest)
+endif()
+
+if (CXTEST_BUILD_EXAMPLES)
+add_subdirectory(example/string-utils)
 endif()
