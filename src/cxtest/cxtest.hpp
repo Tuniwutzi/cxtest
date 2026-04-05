@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <format>
 #include <functional>
 #include <list>
@@ -99,9 +100,12 @@ struct RequireFailed
 
 } // namespace detail
 
+// Must be abstract, because it BasicTestCase must be able to inherit it without needing a constructor
+// Because otherwise, user code inheriting from BasicTestCase<...> would always have to declare using
+// BasicTestCase<...>::BasicTestCase as well.
 class Context
 {
-private:
+protected:
     static constexpr std::string default_message(std::source_location loc = std::source_location::current())
     {
         std::string line;
@@ -121,26 +125,10 @@ private:
         return std::string{"Assertion failed at "} + loc.file_name() + ":" + line;
     }
 
-    template<bool throws>
-    constexpr void handle_failure(std::string&& message) noexcept(!throws)
-    {
-        _sink.error(message);
-        if constexpr (throws)
-        {
-            throw detail::RequireFailed{};
-        }
-    }
-
 public:
     virtual ~Context() = default;
 
-    constexpr void check(bool condition, std::string message = default_message()) noexcept
-    {
-        if (!condition)
-        {
-            handle_failure<false>(std::move(message));
-        }
-    }
+    virtual constexpr void check(bool condition, std::string message = default_message()) noexcept = 0;
     constexpr void check_nothrow(auto&& functor, std::string message = default_message()) noexcept
     {
         try
@@ -149,7 +137,7 @@ public:
         }
         catch (...)
         {
-            handle_failure<false>(std::move(message));
+            check(false, std::move(message));
         }
     }
     constexpr void check_throws(auto&& functor, std::string message = default_message()) noexcept
@@ -157,20 +145,14 @@ public:
         try
         {
             std::invoke(std::forward<decltype(functor)>(functor));
-            handle_failure<false>(std::move(message));
+            check(false, std::move(message));
         }
         catch (...)
         {
         }
     }
 
-    constexpr void require(bool condition, std::string message = default_message())
-    {
-        if (!condition)
-        {
-            handle_failure<true>(std::move(message));
-        }
-    }
+    virtual constexpr void require(bool condition, std::string message = default_message()) = 0;
     constexpr void require_nothrow(auto&& functor, std::string message = default_message())
     {
         try
@@ -179,7 +161,7 @@ public:
         }
         catch (...)
         {
-            handle_failure<true>(std::move(message));
+            require(false, std::move(message));
         }
     }
     constexpr void require_throws(auto&& functor, std::string message = default_message())
@@ -195,12 +177,46 @@ public:
         }
         if (!threw)
         {
+            require(false, std::move(message));
+        }
+    }
+};
+
+namespace detail
+{
+
+class ContextImpl : public virtual Context
+{
+private:
+    template<bool throws>
+    constexpr void handle_failure(std::string&& message) noexcept(!throws)
+    {
+        _sink.error(message);
+        if constexpr (throws)
+        {
+            throw detail::RequireFailed{};
+        }
+    }
+
+public:
+    constexpr void check(bool condition, std::string message = default_message()) noexcept final
+    {
+        if (!condition)
+        {
+            handle_failure<false>(std::move(message));
+        }
+    }
+
+    constexpr void require(bool condition, std::string message = default_message()) final
+    {
+        if (!condition)
+        {
             handle_failure<true>(std::move(message));
         }
     }
 
 protected:
-    constexpr Context(TestOutputSink& sink)
+    constexpr ContextImpl(TestOutputSink& sink)
         : _sink(sink)
     {
     }
@@ -208,17 +224,19 @@ protected:
     TestOutputSink& _sink;
 };
 
-class CTContext : public Context
+} // namespace detail
+
+class CTContext : public detail::ContextImpl
 {
 public:
     // Make sure it can only be constructed at compiletime
     consteval CTContext(TestOutputSink& sink)
-        : Context{sink}
+        : detail::ContextImpl{sink}
     {
     }
 };
 
-class RTContext : public Context
+class RTContext : public detail::ContextImpl
 {
 public:
     // Make sure it can only be constructed at runtime
@@ -264,52 +282,10 @@ constexpr void execute_test(auto&& test, TestOutputSink& sink)
     }
 }
 
-class TestBase : protected virtual Context
-{
-};
-
 template<std::meta::info info>
 void discover_tests(std::string_view group_name, std::vector<Test>& tests)
 {
-    if constexpr (is_type(info) && is_class_type(info) && is_base_of_type(^^TestBase, info))
-    {
-        // Discover test methods
-        // (members_of returns only direct members)
-        template for (constexpr auto member :
-                      std::define_static_array(members_of(info, std::meta::access_context::current())))
-        {
-            if constexpr (is_member_function_pointer_type(type_of(member)) && parameters_of(member).empty())
-            {
-                // Test discovered
-            }
-        }
-
-        // ... Later execution of the tests : struct RT : protected virtual RTContext, virtual[:info:]
-        {
-            using RTContext::RTContext;
-        };
-        for (auto discovered_test : discovered_tests)
-        {
-            RT rt{sink};
-            rv.[:discovered_test:]();
-        }
-
-        // Example for such tests:
-        class StringTests : TestBase
-        {
-            constexpr void success()
-            {
-                check(true);
-                require(false);
-                REQUIRE_NOTHROW(some_function()); // macro assumes `this` to be a context
-            }
-            constexpr void failure()
-            {
-                // ...
-            }
-        };
-    }
-    else if constexpr (is_function(info))
+    if constexpr (is_function(info))
     {
         detail::Test test;
         if constexpr (std::is_invocable_v<decltype([:info:]), CTContext&>)
@@ -380,6 +356,101 @@ private:
     std::string name;
     std::vector<detail::Test> tests;
 };
+
+template<typename CaseContext>
+    requires(std::same_as<CaseContext, Context> || std::same_as<CaseContext, RTContext> ||
+             std::same_as<CaseContext, CTContext>)
+class BasicTestCase : protected Context
+{
+public:
+    Context* ctx;
+    constexpr void check(bool condition, std::string msg = default_message()) noexcept final
+    {
+        ctx->check(condition, std::move(msg));
+    }
+    constexpr void require(bool condition, std::string msg = default_message()) final
+    {
+        ctx->require(condition, std::move(msg));
+    }
+};
+using TestCase = BasicTestCase<Context>;
+using RTTestCase = BasicTestCase<RTContext>;
+using CTTestCase = BasicTestCase<CTContext>;
+
+struct MyTestCase : TestCase
+{
+    constexpr void foo()
+    {
+        check(false, "foooo!");
+    }
+    constexpr void bar()
+    {
+        check(false);
+        check_nothrow(
+            []
+            {
+                throw "asd";
+            });
+    }
+};
+struct MyRTTestCase : RTTestCase
+{
+};
+struct MyCTTestCase : CTTestCase
+{
+};
+
+template<std::meta::info info>
+consteval void asd()
+{
+    using T = [:info:];
+    constexpr auto bases =
+        std::define_static_array(bases_of(info, std::meta::access_context::unchecked())) | std::views::transform(
+                                                                                               [](auto base)
+                                                                                               {
+                                                                                                   return type_of(base);
+                                                                                               });
+    if constexpr (std::ranges::contains(bases, dealias(^^TestCase)))
+    {
+        struct Impl : T
+        {
+        };
+        CollectingTestOutputSink sink{};
+        CTContext ctx{sink};
+        Impl i{};
+        i.TestCase::ctx = &ctx;
+        i.foo();
+        if (sink.errors != std::vector<std::string>{"foooo!"})
+        {
+            throw "asd";
+        }
+        sink.errors.clear();
+        i.bar();
+        if (sink.errors.size() != 2)
+        {
+            throw "asd";
+        }
+
+        // Discover test methods
+        // (members_of returns only direct members)
+        template for (constexpr auto member :
+                      std::define_static_array(members_of(info, std::meta::access_context::current())))
+        {
+            if constexpr (is_member_function_pointer_type(type_of(member)) && parameters_of(member).empty())
+            {
+                // Test discovered
+            }
+        }
+    }
+    // TODO: RT only and CT only
+}
+
+consteval
+{
+    asd<^^MyTestCase>();
+    asd<^^MyRTTestCase>();
+    asd<^^MyCTTestCase>();
+}
 
 template<std::meta::info test_or_namespace>
 Group group_tests(std::string name = Group::default_name())

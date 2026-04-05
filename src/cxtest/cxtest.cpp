@@ -29,7 +29,7 @@ void PrintingRunOutputSink::error(std::string_view message)
 }
 
 RTContext::RTContext(TestOutputSink& sink)
-    : Context{sink}
+    : detail::ContextImpl{sink}
 {
 }
 
