@@ -264,10 +264,52 @@ constexpr void execute_test(auto&& test, TestOutputSink& sink)
     }
 }
 
+class TestBase : protected virtual Context
+{
+};
+
 template<std::meta::info info>
 void discover_tests(std::string_view group_name, std::vector<Test>& tests)
 {
-    if constexpr (is_function(info))
+    if constexpr (is_type(info) && is_class_type(info) && is_base_of_type(^^TestBase, info))
+    {
+        // Discover test methods
+        // (members_of returns only direct members)
+        template for (constexpr auto member :
+                      std::define_static_array(members_of(info, std::meta::access_context::current())))
+        {
+            if constexpr (is_member_function_pointer_type(type_of(member)) && parameters_of(member).empty())
+            {
+                // Test discovered
+            }
+        }
+
+        // ... Later execution of the tests : struct RT : protected virtual RTContext, virtual[:info:]
+        {
+            using RTContext::RTContext;
+        };
+        for (auto discovered_test : discovered_tests)
+        {
+            RT rt{sink};
+            rv.[:discovered_test:]();
+        }
+
+        // Example for such tests:
+        class StringTests : TestBase
+        {
+            constexpr void success()
+            {
+                check(true);
+                require(false);
+                REQUIRE_NOTHROW(some_function()); // macro assumes `this` to be a context
+            }
+            constexpr void failure()
+            {
+                // ...
+            }
+        };
+    }
+    else if constexpr (is_function(info))
     {
         detail::Test test;
         if constexpr (std::is_invocable_v<decltype([:info:]), CTContext&>)
