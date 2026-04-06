@@ -314,8 +314,6 @@ void discover_tests(std::string_view group_name, std::vector<Test>& tests)
     }
 }
 
-} // namespace detail
-
 class [[nodiscard]] Group
 {
 public:
@@ -331,21 +329,19 @@ public:
 
     std::string_view get_name() const noexcept;
 
-    // TODO: This is not clean; it exposes a detail:: type in a public interface
     std::span<const detail::Test> get_tests() const noexcept;
+    void run(GroupOutputSink& sink) const noexcept;
+
+    static consteval Group from_namespace(std::meta::info info);
+    static consteval Group from_functions(std::string name, const std::vector<std::meta::info>& infos);
+    static consteval std::vector<Group> from_namespace_recursive(const std::vector<std::meta::info>& infos);
 
 private:
     std::string name;
     std::vector<detail::Test> tests;
 };
 
-template<std::meta::info test_or_namespace>
-Group group_tests(std::string name = Group::default_name())
-{
-    Group group{std::move(name)};
-    group.add<test_or_namespace>();
-    return group;
-}
+} // namespace detail
 
 struct [[nodiscard]] Registration
 {
@@ -361,13 +357,14 @@ private:
     std::list<Group>::const_iterator position;
 };
 
-template<std::meta::info test_or_namespace>
-Registration register_tests(std::string name = Group::default_name())
+template<std::meta::info namespace_or_testcase>
+Registration register_tests()
 {
     return {group_tests<test_or_namespace>(std::move(name))};
 }
+template<std::meta::info ns>
+Registration register_tests_recursive();
 
-void run_group(const Group& group, GroupOutputSink& sink) noexcept;
 void run_registered_tests(RunOutputSink& sink) noexcept;
 
 } // namespace cxtest
