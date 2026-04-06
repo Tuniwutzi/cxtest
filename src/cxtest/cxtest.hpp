@@ -12,6 +12,16 @@
 #include <unordered_map>
 #include <vector>
 
+// Overloaded macro trick
+// Purpose:
+//  REQUIRE(<condition>) in test class
+//  REQUIRE(ctx, <condition>) in test function wit ctx parameter
+// Question: how can the user set a custom message?
+#define CXTEST_REQUIRE_FREE(ctx, condition) ctx.check(condition)
+#define CXTEST_REQUIRE_MEMBER(condition) this->check(condition)
+#define CXTEST_REQUIRE_OVERLOADED(a, b, c, ...) c
+#define REQUIRE(...) CXTEST_REQUIRE_OVERLOADED(__VA_ARGS__, CXTEST_REQUIRE_FREE, CXTEST_REQUIRE_MEMBER)(__VA_ARGS__)
+
 namespace cxtest
 {
 
@@ -128,6 +138,9 @@ protected:
 public:
     virtual ~Context() = default;
 
+    // TODO: instead of making check and require pure virtual, make handle_failure pure virtual
+    // That avoids the issue of having to redeclare the default arg every time
+    // And means TestCase has to override only one method
     virtual constexpr void check(bool condition, std::string message = default_message()) noexcept = 0;
     constexpr void check_nothrow(auto&& functor, std::string message = default_message()) noexcept
     {
