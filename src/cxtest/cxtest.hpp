@@ -228,27 +228,17 @@ public:
 namespace detail
 {
 
-struct RuntimeTest
+template<auto test>
+void execute_runtime_test(RTContext& context)
 {
-public:
-    virtual ~RuntimeTest() = default;
-    virtual void operator()(RTContext& context) const = 0;
-};
-
-template<auto function>
-struct RuntimeTestImpl : RuntimeTest
-{
-    void operator()(RTContext& context) const override
-    {
-        function(context);
-    }
-};
+    test(context);
+}
 
 struct Test
 {
     const char* name;
     std::optional<std::span<const char* const>> compiletime_errors = {};
-    const RuntimeTest* runtime_test = nullptr;
+    void (*runtime_test)(RTContext&) = nullptr;
 };
 
 template<typename Context>
@@ -264,79 +254,121 @@ constexpr void execute_test(auto&& test, TestOutputSink& sink)
     }
 }
 
-template<std::meta::info info>
-void discover_tests(std::string_view group_name, std::vector<Test>& tests)
-{
-    if constexpr (is_function(info))
-    {
-        detail::Test test;
-        if constexpr (std::is_invocable_v<decltype([:info:]), CTContext&>)
-        {
-            constexpr auto result = [&] consteval
-            {
-                CollectingTestOutputSink sink;
-                detail::execute_test<CTContext>([:info:], sink);
-                return std::define_static_array(sink.errors | std::views::transform(
-                                                                  [](auto& string)
-                                                                  {
-                                                                      return std::define_static_string(string);
-                                                                  }));
-            }();
-            test.compiletime_errors = result;
-        }
-        if constexpr (std::is_invocable_v<decltype([:info:]), RTContext&>)
-        {
-            static constexpr detail::RuntimeTestImpl<([:info:])> runner{};
-            test.runtime_test = &runner;
-        }
-
-        if (test.compiletime_errors || test.runtime_test)
-        {
-            test.name = std::define_static_string(identifier_of(info));
-            for (const detail::Test& existing : tests)
-            {
-                if (test.name == existing.name)
-                {
-                    throw std::runtime_error{
-                        std::format("Test with name {} already exists in group {}", test.name, group_name)};
-                }
-            }
-            tests.push_back(std::move(test));
-        }
-    }
-    else if constexpr (is_namespace(info))
-    {
-        template for (constexpr auto member :
-                      std::define_static_array(members_of(info, std::meta::access_context::current())))
-        {
-            discover_tests<member>(group_name, tests);
-        }
-    }
-}
-
 class [[nodiscard]] Group
 {
 public:
-    static std::string default_name(std::source_location loc = std::source_location::current());
-
-    Group(std::string name = default_name());
-
-    template<std::meta::info test_or_namespace>
-    void add()
-    {
-        detail::discover_tests<test_or_namespace>(name, tests);
-    }
+    Group(std::string name);
 
     std::string_view get_name() const noexcept;
 
     std::span<const detail::Test> get_tests() const noexcept;
     void run(GroupOutputSink& sink) const noexcept;
 
-    static consteval Group from_namespace(std::meta::info info);
-    static consteval Group from_functions(std::string name, const std::vector<std::meta::info>& infos);
-    static consteval std::vector<Group> from_namespace_recursive(const std::vector<std::meta::info>& infos);
+    template<std::meta::info info>
+        requires(is_namespace(info))
+    static Group from_namespace()
+    {
+        Group rv{{identifier_of(info)}};
+        auto functions =
+            members_of(info, std::meta::access_context::current()) | std::views::filter(
+                                                                         [](auto member)
+                                                                         {
+                                                                             if (!is_function(member))
+                                                                             {
+                                                                                 return false;
+                                                                             }
+
+                                                                             if (return_type_of(member) != ^^void)
+                                                                             {
+                                                                                 return false;
+                                                                             }
+
+                                                                             return true;
+                                                                         });
+        for (auto function : functions)
+        {
+            auto parameters = parameters_of(function);
+            if (parameters.size() != 1)
+            {
+                continue;
+            }
+
+            auto parameter = parameters.front();
+
+            bool compiletime = false;
+            bool runtime = false;
+            if (parameter == ^^(Context&))
+            {
+                compiletime = true;
+                runtime = true;
+            }
+            else if (parameter == ^^(CTContext&))
+            {
+                compiletime = true;
+            }
+            else if (parameter == ^^(RTContext&))
+            {
+                runtime = true;
+            }
+            else
+            {
+                continue;
+            }
+
+            Test test{.name = std::define_static_string(identifier_of(member))};
+            if (compiletime)
+            {
+                CollectingTestOutputSink sink;
+                detail::execute_test<CTContext>([:member:], sink);
+                test.compiletime_errors =
+                    std::define_static_array(sink.errors | std::views::transform(
+                                                               [](auto& string)
+                                                               {
+                                                                   return std::define_static_string(string);
+                                                               }));
+            }
+            if (runtime)
+            {
+                auto executor = substitute(^^execute_runtime_test, {member});
+                test.runtime_test = extract<void (*)(RTContext&)>(executor);
+            }
+            group.tests.push_back(std::move(test));
+        }
+        return group;
+    }
+    template<std::meta::info info>
+        requires(is_namespace(info))
+    static std::vector<Group> from_namespace_recursive()
+    {
+        std::vector<Group> groups;
+
+        from_namespace_recursive_impl<info>(groups);
+
+        return groups;
+    }
 
 private:
+    template<std::meta::info info>
+    static void from_namespace_recursive_impl(std::vector<Group>& groups)
+    {
+        auto group = from_namespace<info>();
+        if (!group.get_tests().empty())
+        {
+            groups.push_back(std::move(group));
+        }
+
+        constexpr auto namespaces =
+            members_of(info, std::meta::access_context::current()) | std::views::filter(
+                                                                         [](auto member)
+                                                                         {
+                                                                             return is_namespace(member);
+                                                                         });
+        template for (constexpr auto ns_info : namespaces)
+        {
+            from_namespace_recursive_impl<ns_info>(groups);
+        }
+    }
+
     std::string name;
     std::vector<detail::Test> tests;
 };
@@ -345,7 +377,7 @@ private:
 
 struct [[nodiscard]] Registration
 {
-    Registration(Group group);
+    Registration(std::vector<detail::Group>&& groups);
     ~Registration();
 
     Registration(const Registration&) = delete;
@@ -354,16 +386,22 @@ struct [[nodiscard]] Registration
     Registration& operator=(Registration&&) = delete;
 
 private:
-    std::list<Group>::const_iterator position;
+    std::vector<std::list<Group>::const_iterator> positions;
 };
 
-template<std::meta::info namespace_or_testcase>
-Registration register_tests()
+template<std::meta::info namespace_info>
+    requires(is_namespace(namespace_info))
+Registration register_tests_in_namespace()
 {
-    return {group_tests<test_or_namespace>(std::move(name))};
+    auto group = detail::Group::from_namespace<namespace_info>();
+    return {{std::move(group)}};
 }
-template<std::meta::info ns>
-Registration register_tests_recursive();
+template<std::meta::info namespace_info>
+    requires(is_namespace(namespace_info))
+Registration register_tests_in_namespace_recursive()
+{
+    return {detail::Group::from_namespace_recursive<namespace_info>()};
+}
 
 void run_registered_tests(RunOutputSink& sink) noexcept;
 
