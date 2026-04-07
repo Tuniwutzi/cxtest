@@ -266,7 +266,7 @@ public:
 
     template<std::meta::info info>
         requires(is_namespace(info))
-    static Group from_namespace()
+    static std::optional<Group> from_namespace()
     {
         Group rv{{identifier_of(info)}};
         auto functions =
@@ -334,6 +334,12 @@ public:
             }
             group.tests.push_back(std::move(test));
         }
+
+        if (group.tests.empty())
+        {
+            return std::nullopt;
+        }
+
         return group;
     }
     template<std::meta::info info>
@@ -351,10 +357,9 @@ private:
     template<std::meta::info info>
     static void from_namespace_recursive_impl(std::vector<Group>& groups)
     {
-        auto group = from_namespace<info>();
-        if (!group.get_tests().empty())
+        if (auto group = from_namespace<info>())
         {
-            groups.push_back(std::move(group));
+            groups.push_back(std::move(*group));
         }
 
         constexpr auto namespaces =
