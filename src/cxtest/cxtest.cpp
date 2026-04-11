@@ -33,23 +33,18 @@ RTContext::RTContext(TestOutputSink& sink)
 {
 }
 
-std::string Group::default_name(std::source_location loc)
-{
-    return std::format("{}:{}", loc.file_name(), loc.line());
-}
-
-Group::Group(std::string name)
-    : name{std::move(name)}
+detail::Group::Group(std::string_view name, std::vector<Test> tests)
+    : name{name}
+    , tests{std::move(tests)}
 {
 }
 
-std::string_view Group::get_name() const noexcept
+std::string_view detail::Group::get_name() const noexcept
 {
     return name;
 }
 
-// TODO: This is not clean; it exposes a detail:: type in a public interface
-std::span<const detail::Test> Group::get_tests() const noexcept
+std::span<const detail::Test> detail::Group::get_tests() const noexcept
 {
     return tests;
 }
@@ -61,11 +56,8 @@ std::list<Group> registrations{};
 
 } // namespace detail
 
-Registration::Registration(Group group)
-    : position{[&group]
-               {
-                   return detail::registrations.insert(detail::registrations.end(), std::move(group));
-               }()}
+Registration::Registration(detail::Group&& group)
+    : position{detail::registrations.insert(detail::registrations.end(), std::move(group))}
 {
 }
 Registration::~Registration()
@@ -73,7 +65,7 @@ Registration::~Registration()
     detail::registrations.erase(position);
 }
 
-void run_group(const Group& group, GroupOutputSink& sink) noexcept
+void run_group(const detail::Group& group, GroupOutputSink& sink) noexcept
 {
     for (const auto& test : group.get_tests())
     {

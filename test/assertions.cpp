@@ -78,9 +78,10 @@ constexpr void check_throws(cxtest::Context& ctx)
 
 void test_assertions()
 {
-    auto group = cxtest::group_tests<^^tests>();
+    consteval auto tests = cxtest::detail::discover_tests_in_namespace(^^tests);
+    REQUIRE(tests.size() == 6, "Group should exist and contain 6 tests");
     cxtest::CollectingGroupOutputSink sink{};
-    cxtest::run_group(group, sink);
+    group->run(sink);
 
     REQUIRE(sink.tests.size() == 6, "Expected 6 tests to run");
 
