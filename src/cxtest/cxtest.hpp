@@ -337,7 +337,6 @@ Group group_from_namespace()
         {
             if (test.name == existing.name)
             {
-                // TODO: we'd love to make this a compiletime error
                 throw std::runtime_error{
                     std::format("Test with name {} exists multiple times in group {}", test.name, group_name)};
             }
@@ -405,7 +404,6 @@ Registration register_tests_in_namespace_recursive()
     auto groups = detail::discover_groups_recursive<ns>();
     if (groups.empty())
     {
-        // TODO: we'd love to make this a compiletime error
         throw std::runtime_error{"Namespace does not contain any tests"};
     }
     return Registration{std::move(groups)};
