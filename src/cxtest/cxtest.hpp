@@ -319,15 +319,37 @@ private:
     std::vector<detail::Test> tests;
 };
 
+consteval std::string get_full_namespace(std::meta::info info)
+{
+    if (!has_parent(info))
+    {
+        return ""; // global namespace, finish
+    }
+
+    auto result = get_full_namespace(parent_of(info));
+    if (!result.empty())
+    {
+        result += "::";
+    }
+
+    if (has_identifier(info))
+    {
+        result += identifier_of(info);
+    }
+    else
+    {
+        result += "<anonymous>";
+    }
+    return result;
+}
+
 template<std::meta::info ns>
     requires(is_namespace(ns))
 Group group_from_namespace()
 {
     auto tests = discover_tests<ns>();
 
-    // TODO: construct full namespace string
-    static constexpr std::string_view group_name =
-        std::define_static_string(has_identifier(ns) ? identifier_of(ns) : display_string_of(ns));
+    static constexpr std::string_view group_name = std::define_static_string(get_full_namespace(ns));
 
     size_t drop = 0;
     for (const detail::Test& test : tests)

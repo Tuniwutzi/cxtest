@@ -50,7 +50,7 @@ void test_multi_tu()
                 std::format("Test {} must succeed", name));
     };
 
-    auto main_pos = results.find("multi_tu_main");
+    auto main_pos = results.find("<anonymous>::multi_tu_main");
     REQUIRE(main_pos != results.end(), "Must contain main group");
     REQUIRE(main_pos->second.tests.size() == 3, "Must contain 3 tests from main group");
     check_success(get_test(main_pos->second.tests, "main_1"));
