@@ -27,8 +27,8 @@ namespace invalid
 
 void test_invalid()
 {
-    auto invalid_group = cxtest::group_tests<^^invalid>();
-    REQUIRE(invalid_group.get_tests().size() == 0,
+    auto invalid_group = cxtest::detail::group_from_namespace<^^invalid>();
+    REQUIRE(invalid_group.get_test_count() == 0,
             "There should not be tests in the invalid group, uncommenting them should cause compiler errors");
 }
 
@@ -60,9 +60,9 @@ void rt_1(cxtest::RTContext& ctx)
 
 void test_valid()
 {
-    auto valid_group = cxtest::group_tests<^^valid>();
+    auto valid_group = cxtest::detail::group_from_namespace<^^valid>();
     cxtest::CollectingGroupOutputSink sink{};
-    cxtest::run_group(valid_group, sink);
+    valid_group.run(sink);
     REQUIRE(sink.tests.size() == 5, "Unexpected number of tests ran");
     for (const auto& [name, result] : sink.tests)
     {

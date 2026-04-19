@@ -23,6 +23,6 @@ constexpr void side_3(cxtest::Context& ctx)
 
 } // namespace multi_tu_side
 
-auto registration = cxtest::register_tests<^^multi_tu_side>("multi_tu_side");
+auto registration = cxtest::register_tests_in_namespace_recursive<^^multi_tu_side>();
 
 } // namespace

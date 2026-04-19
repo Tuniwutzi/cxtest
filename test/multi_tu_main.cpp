@@ -25,7 +25,7 @@ constexpr void main_3(cxtest::Context& ctx)
 
 } // namespace multi_tu_main
 
-cxtest::Registration group_registration{cxtest::group_tests<^^multi_tu_main>("multi_tu_main")};
+cxtest::Registration group_registration = cxtest::register_tests_in_namespace_recursive<^^multi_tu_main>();
 
 } // namespace
 

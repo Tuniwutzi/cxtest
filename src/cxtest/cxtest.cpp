@@ -33,13 +33,14 @@ RTContext::RTContext(TestOutputSink& sink)
 {
 }
 
-std::string Group::default_name(std::source_location loc)
+namespace detail
 {
-    return std::format("{}:{}", loc.file_name(), loc.line());
-}
 
-Group::Group(std::string name)
+std::list<std::vector<Group>> registrations{};
+
+Group::Group(std::string_view name, std::vector<Test> tests)
     : name{std::move(name)}
+    , tests{std::move(tests)}
 {
 }
 
@@ -48,34 +49,14 @@ std::string_view Group::get_name() const noexcept
     return name;
 }
 
-// TODO: This is not clean; it exposes a detail:: type in a public interface
-std::span<const detail::Test> Group::get_tests() const noexcept
+size_t Group::get_test_count() const noexcept
 {
-    return tests;
+    return tests.size();
 }
 
-namespace detail
+void Group::run(GroupOutputSink& sink) const noexcept
 {
-
-std::list<Group> registrations{};
-
-} // namespace detail
-
-Registration::Registration(Group group)
-    : position{[&group]
-               {
-                   return detail::registrations.insert(detail::registrations.end(), std::move(group));
-               }()}
-{
-}
-Registration::~Registration()
-{
-    detail::registrations.erase(position);
-}
-
-void run_group(const Group& group, GroupOutputSink& sink) noexcept
-{
-    for (const auto& test : group.get_tests())
+    for (const auto& test : tests)
     {
         if (test.compiletime_errors)
         {
@@ -93,13 +74,26 @@ void run_group(const Group& group, GroupOutputSink& sink) noexcept
     }
 }
 
+} // namespace detail
+
+Registration::Registration(std::vector<detail::Group>&& groups)
+    : position(detail::registrations.insert(detail::registrations.end(), std::move(groups)))
+{
+}
+Registration::~Registration()
+{
+    detail::registrations.erase(position);
+}
+
 void run_registered_tests(RunOutputSink& sink) noexcept
 {
-    for (const auto& group : detail::registrations)
+    for (const auto& groups : detail::registrations)
     {
-        const auto& tests = group.get_tests();
-        auto& group_sink = sink.start_group(group.get_name(), tests.size());
-        run_group(group, group_sink);
+        for (const auto& group : groups)
+        {
+            auto& group_sink = sink.start_group(group.get_name(), group.get_test_count());
+            group.run(group_sink);
+        }
     }
 }
 
