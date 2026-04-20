@@ -19,27 +19,34 @@ struct TestOutputSink
     constexpr virtual ~TestOutputSink() = default;
 
     constexpr virtual void record_failure(std::string_view message) = 0;
+    constexpr virtual void end_test() = 0;
 };
 
 struct GroupOutputSink
 {
     constexpr virtual ~GroupOutputSink() = default;
 
-    virtual TestOutputSink& start_test(std::string_view name, bool compiletime) = 0;
+    constexpr virtual TestOutputSink& start_test(std::string_view name, bool compiletime) = 0;
+    constexpr virtual void end_group() = 0;
 };
 
 struct RunOutputSink
 {
     constexpr virtual ~RunOutputSink() = default;
-    virtual GroupOutputSink& start_group(std::string_view name, size_t tests) = 0;
+    constexpr virtual GroupOutputSink& start_group(std::string_view name, size_t tests) = 0;
 };
 
 struct PrintingRunOutputSink : RunOutputSink, GroupOutputSink, TestOutputSink
 {
     bool failed = false;
+
     GroupOutputSink& start_group(std::string_view name, size_t tests) final;
+
     TestOutputSink& start_test(std::string_view name, bool compiletime) final;
+    void end_group() final;
+
     void record_failure(std::string_view message) final;
+    void end_test() final;
 };
 
 struct CollectingTestOutputSink : TestOutputSink
@@ -49,6 +56,7 @@ struct CollectingTestOutputSink : TestOutputSink
     {
         failures.emplace_back(message);
     }
+    constexpr void end_test() final {}
 };
 
 struct CollectingGroupOutputSink : GroupOutputSink
@@ -73,6 +81,7 @@ struct CollectingGroupOutputSink : GroupOutputSink
             return test.rt_sink.emplace();
         }
     }
+    constexpr void end_group() final {}
 };
 
 struct CollectingRunOutputSink : RunOutputSink

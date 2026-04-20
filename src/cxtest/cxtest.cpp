@@ -14,18 +14,27 @@ TestOutputSink& PrintingRunOutputSink::start_test(std::string_view name, bool co
 {
     if (compiletime)
     {
-        std::cout << std::format("Results of test {} at compiletime", name) << std::endl;
+        std::cout << std::format("\tResults of test {} at compiletime", name) << std::endl;
     }
     else
     {
-        std::cout << std::format("Executing test {} at runtime", name) << std::endl;
+        std::cout << std::format("\tExecuting test {} at runtime", name) << std::endl;
     }
     return *this;
+}
+void PrintingRunOutputSink::end_group()
+{
+    std::cout << "Finished executing group" << std::endl;
 }
 void PrintingRunOutputSink::record_failure(std::string_view message)
 {
     failed = true;
-    std::cout << "\t" << message << std::endl;
+    std::cout << "\t\t" << message << std::endl;
+}
+void PrintingRunOutputSink::end_test()
+{
+    std::cout << "\tTest " << (failed ? "failed" : "succeeded") << std::endl;
+    failed = false;
 }
 
 RTContext::RTContext(TestOutputSink& sink)
@@ -65,11 +74,13 @@ void Group::run(GroupOutputSink& sink) const noexcept
             {
                 test_sink.record_failure(error);
             }
+            test_sink.end_test();
         }
         if (test.runtime_test)
         {
             auto& test_sink = sink.start_test(test.name, false);
             detail::execute_test<RTContext>(*test.runtime_test, test_sink);
+            test_sink.end_test();
         }
     }
 }
@@ -93,6 +104,7 @@ void run_registered_tests(RunOutputSink& sink) noexcept
         {
             auto& group_sink = sink.start_group(group.get_name(), group.get_test_count());
             group.run(group_sink);
+            group_sink.end_group();
         }
     }
 }
