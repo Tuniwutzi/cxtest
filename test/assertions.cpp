@@ -72,6 +72,23 @@ constexpr void check_throws(cxtest::Context& ctx)
     ctx.check(false, "Unreachable");
 }
 
+constexpr void check_uncaught(cxtest::Context& ctx)
+{
+    ctx.check(false, "Failure 1");
+    throw std::runtime_error{"unique string included in this uncaught exception"};
+    ctx.check(false, "Failure 2");
+}
+
+constexpr void check_uncaught_unknown_type(cxtest::Context& ctx)
+{
+    ctx.check(false, "Failure 1");
+    struct Foo
+    {
+    };
+    throw Foo{};
+    ctx.check(false, "Failure 2");
+}
+
 } // namespace tests
 
 } // namespace
@@ -82,7 +99,7 @@ void test_assertions()
     cxtest::CollectingGroupOutputSink sink{};
     group.run(sink);
 
-    REQUIRE(sink.tests.size() == 6, "Expected 6 tests to run");
+    REQUIRE(sink.tests.size() == 8, "Unexpected number of tests ran");
 
     {
         auto& [ct, rt] = sink.tests.at("check_rt");
@@ -133,6 +150,33 @@ void test_assertions()
         {
             auto equal = std::ranges::equal(result.value().failures, std::vector<std::string>{"Failure", "ReqFailure"});
             REQUIRE(equal, "check_throws expects 2 specific failures");
+        };
+        check(ct);
+        check(rt);
+    }
+
+    {
+        auto& [ct, rt] = sink.tests.at("check_uncaught");
+        auto check = [](auto& result)
+        {
+            auto& failures = result.value().failures;
+            REQUIRE(failures.size() == 2, "Expected exactly 2 failures");
+            REQUIRE(failures.front() == "Failure 1", "Unexpected first failure");
+            REQUIRE(failures.back().contains("unique string included in this uncaught exception"),
+                    "Exception message not included in failure");
+        };
+        check(ct);
+        check(rt);
+    }
+    {
+        auto& [ct, rt] = sink.tests.at("check_uncaught_unknown_type");
+        auto check = [](auto& result)
+        {
+            auto& failures = result.value().failures;
+            REQUIRE(failures.size() == 2, "Expected exactly 2 failures");
+            REQUIRE(failures.front() == "Failure 1", "Unexpected first failure");
+            REQUIRE(failures.back() == "Exception of unknown type escaped the test function",
+                    "Unexpected message for uncaught exception");
         };
         check(ct);
         check(rt);

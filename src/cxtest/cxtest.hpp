@@ -257,6 +257,14 @@ constexpr void execute_test(auto&& test, TestOutputSink& sink)
     catch (const detail::RequireFailed&)
     {
     }
+    catch (const std::exception& ex)
+    {
+        sink.record_failure(std::string{"Exception escaped the test function: "} + ex.what());
+    }
+    catch (...)
+    {
+        sink.record_failure("Exception of unknown type escaped the test function");
+    }
 }
 
 template<std::meta::info ns>
