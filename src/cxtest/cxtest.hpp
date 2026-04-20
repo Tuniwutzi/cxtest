@@ -88,11 +88,6 @@ struct CollectingRunOutputSink : RunOutputSink
 namespace detail
 {
 
-struct CompiletimeResults
-{
-    std::span<const char* const> errors;
-};
-
 struct RequireFailed
 {
 };
