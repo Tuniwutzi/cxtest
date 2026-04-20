@@ -14,26 +14,30 @@ TestOutputSink& PrintingRunOutputSink::start_test(std::string_view name, bool co
 {
     if (compiletime)
     {
-        std::cout << std::format("\tResults of test {} at compiletime", name) << std::endl;
+        std::cout << std::format("\tResults of test {} at compiletime...", name);
     }
     else
     {
-        std::cout << std::format("\tExecuting test {} at runtime", name) << std::endl;
+        std::cout << std::format("\tExecuting test {} at runtime...", name);
     }
     return *this;
 }
-void PrintingRunOutputSink::end_group()
-{
-    std::cout << "Finished executing group" << std::endl;
-}
+void PrintingRunOutputSink::end_group() {}
 void PrintingRunOutputSink::record_failure(std::string_view message)
 {
-    failed = true;
+    if (!failed)
+    {
+        std::cout << " failed" << std::endl;
+        failed = true;
+    }
     std::cout << "\t\t" << message << std::endl;
 }
 void PrintingRunOutputSink::end_test()
 {
-    std::cout << "\tTest " << (failed ? "failed" : "succeeded") << std::endl;
+    if (!failed)
+    {
+        std::cout << " succeeded" << std::endl;
+    }
     failed = false;
 }
 

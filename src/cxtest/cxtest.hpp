@@ -122,7 +122,7 @@ private:
         }
         line.resize(result.ptr - line.data());
 
-        return std::string{"Assertion failed at "} + loc.file_name() + ":" + line;
+        return std::string{"Check failed at "} + loc.file_name() + ":" + line;
     }
 
     template<bool throws>
