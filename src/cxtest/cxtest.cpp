@@ -22,7 +22,7 @@ TestOutputSink& PrintingRunOutputSink::start_test(std::string_view name, bool co
     }
     return *this;
 }
-void PrintingRunOutputSink::error(std::string_view message)
+void PrintingRunOutputSink::record_failure(std::string_view message)
 {
     failed = true;
     std::cout << "\t" << message << std::endl;
@@ -58,12 +58,12 @@ void Group::run(GroupOutputSink& sink) const noexcept
 {
     for (const auto& test : tests)
     {
-        if (test.compiletime_errors)
+        if (test.compiletime_failures)
         {
             auto& test_sink = sink.start_test(test.name, true);
-            for (const auto& error : *test.compiletime_errors)
+            for (const auto& error : *test.compiletime_failures)
             {
-                test_sink.error(error);
+                test_sink.record_failure(error);
             }
         }
         if (test.runtime_test)

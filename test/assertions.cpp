@@ -86,13 +86,13 @@ void test_assertions()
 
     {
         auto& [ct, rt] = sink.tests.at("check_rt");
-        REQUIRE(rt.value().errors.empty() && !ct.value().errors.empty(),
+        REQUIRE(rt.value().failures.empty() && !ct.value().failures.empty(),
                 "check_rt should succeed at runtime and fail at compiletime");
     }
 
     {
         auto& [ct, rt] = sink.tests.at("check_ct");
-        REQUIRE(!rt.value().errors.empty() && ct.value().errors.empty(),
+        REQUIRE(!rt.value().failures.empty() && ct.value().failures.empty(),
                 "check_rt should succeed at runtime and fail at compiletime");
     }
 
@@ -100,7 +100,7 @@ void test_assertions()
         auto& [ct, rt] = sink.tests.at("check_multiple_failures");
         auto check = [](auto& result)
         {
-            REQUIRE(result.value().errors.size() == 3, "check_multiple_failures expects 3 failures");
+            REQUIRE(result.value().failures.size() == 3, "check_multiple_failures expects 3 failures");
         };
         check(ct);
         check(rt);
@@ -110,7 +110,7 @@ void test_assertions()
         auto& [ct, rt] = sink.tests.at("check_then_require");
         auto check = [](auto& result)
         {
-            REQUIRE(result.value().errors.size() == 2, "check_then_require expects 2 failures");
+            REQUIRE(result.value().failures.size() == 2, "check_then_require expects 2 failures");
         };
         check(ct);
         check(rt);
@@ -120,7 +120,7 @@ void test_assertions()
         auto& [ct, rt] = sink.tests.at("check_nothrow");
         auto check = [](auto& result)
         {
-            auto equal = std::ranges::equal(result.value().errors, std::vector<std::string>{"Failure", "ReqFailure"});
+            auto equal = std::ranges::equal(result.value().failures, std::vector<std::string>{"Failure", "ReqFailure"});
             REQUIRE(equal, "check_nothrow expects 2 specific failures");
         };
         check(ct);
@@ -131,7 +131,7 @@ void test_assertions()
         auto& [ct, rt] = sink.tests.at("check_throws");
         auto check = [](auto& result)
         {
-            auto equal = std::ranges::equal(result.value().errors, std::vector<std::string>{"Failure", "ReqFailure"});
+            auto equal = std::ranges::equal(result.value().failures, std::vector<std::string>{"Failure", "ReqFailure"});
             REQUIRE(equal, "check_throws expects 2 specific failures");
         };
         check(ct);

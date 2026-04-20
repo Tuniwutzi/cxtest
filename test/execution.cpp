@@ -94,11 +94,11 @@ void test_valid()
 
         if (ct)
         {
-            REQUIRE(ct->errors.empty(), std::format("Compiletime tests should be successful for {}", name));
+            REQUIRE(ct->failures.empty(), std::format("Compiletime tests should be successful for {}", name));
         }
         if (rt)
         {
-            REQUIRE(rt->errors.empty(), std::format("Runtime tests should be successful for {}", name));
+            REQUIRE(rt->failures.empty(), std::format("Runtime tests should be successful for {}", name));
         }
     }
 }

@@ -18,7 +18,7 @@ struct TestOutputSink
 {
     constexpr virtual ~TestOutputSink() = default;
 
-    constexpr virtual void error(std::string_view message) = 0;
+    constexpr virtual void record_failure(std::string_view message) = 0;
 };
 
 struct GroupOutputSink
@@ -39,15 +39,15 @@ struct PrintingRunOutputSink : RunOutputSink, GroupOutputSink, TestOutputSink
     bool failed = false;
     GroupOutputSink& start_group(std::string_view name, size_t tests) final;
     TestOutputSink& start_test(std::string_view name, bool compiletime) final;
-    void error(std::string_view message) final;
+    void record_failure(std::string_view message) final;
 };
 
 struct CollectingTestOutputSink : TestOutputSink
 {
-    std::vector<std::string> errors;
-    constexpr void error(std::string_view message) final
+    std::vector<std::string> failures;
+    constexpr void record_failure(std::string_view message) final
     {
-        errors.emplace_back(message);
+        failures.emplace_back(message);
     }
 };
 
@@ -119,7 +119,7 @@ private:
     template<bool throws>
     constexpr void handle_failure(std::string&& message) noexcept(!throws)
     {
-        _sink.error(message);
+        _sink.record_failure(message);
         if constexpr (throws)
         {
             throw detail::RequireFailed{};
@@ -242,7 +242,7 @@ struct RuntimeTestImpl : RuntimeTest
 struct Test
 {
     const char* name;
-    std::optional<std::span<const char* const>> compiletime_errors = {};
+    std::optional<std::span<const char* const>> compiletime_failures = {};
     const RuntimeTest* runtime_test = nullptr;
 };
 
@@ -275,13 +275,13 @@ std::vector<Test> discover_tests()
                 {
                     CollectingTestOutputSink sink;
                     detail::execute_test<CTContext>([:info:], sink);
-                    return std::define_static_array(sink.errors | std::views::transform(
-                                                                      [](auto& string)
-                                                                      {
-                                                                          return std::define_static_string(string);
-                                                                      }));
+                    return std::define_static_array(sink.failures | std::views::transform(
+                                                                        [](auto& string)
+                                                                        {
+                                                                            return std::define_static_string(string);
+                                                                        }));
                 }();
-                test.compiletime_errors = result;
+                test.compiletime_failures = result;
             }
             if constexpr (std::is_invocable_v<decltype([:info:]), RTContext&>)
             {
@@ -289,7 +289,7 @@ std::vector<Test> discover_tests()
                 test.runtime_test = &runner;
             }
 
-            if (test.compiletime_errors || test.runtime_test)
+            if (test.compiletime_failures || test.runtime_test)
             {
                 test.name = std::define_static_string(identifier_of(info));
                 tests.push_back(std::move(test));

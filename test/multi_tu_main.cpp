@@ -45,8 +45,8 @@ void test_multi_tu()
     auto check_success = [](const std::pair<std::string, cxtest::CollectingGroupOutputSink::TestResult>& pair)
     {
         auto& [name, result] = pair;
-        REQUIRE((!result.ct_sink || result.ct_sink->errors.empty()) &&
-                    (!result.rt_sink || result.rt_sink->errors.empty()),
+        REQUIRE((!result.ct_sink || result.ct_sink->failures.empty()) &&
+                    (!result.rt_sink || result.rt_sink->failures.empty()),
                 std::format("Test {} must succeed", name));
     };
 
@@ -56,8 +56,8 @@ void test_multi_tu()
     check_success(get_test(main_pos->second.tests, "main_1"));
     check_success(get_test(main_pos->second.tests, "main_2"));
     auto& main_3 = get_test(main_pos->second.tests, "main_3");
-    REQUIRE(main_3.second.ct_sink && main_3.second.ct_sink->errors.size() == 1 && main_3.second.rt_sink &&
-                main_3.second.rt_sink->errors.size() == 1,
+    REQUIRE(main_3.second.ct_sink && main_3.second.ct_sink->failures.size() == 1 && main_3.second.rt_sink &&
+                main_3.second.rt_sink->failures.size() == 1,
             "Test main_3 must fail");
 
     auto side_pos = results.find("multi_tu_side");
@@ -66,7 +66,7 @@ void test_multi_tu()
     check_success(get_test(side_pos->second.tests, "side_1"));
     check_success(get_test(side_pos->second.tests, "side_2"));
     auto& side_3 = get_test(side_pos->second.tests, "side_3");
-    REQUIRE(side_3.second.ct_sink && side_3.second.ct_sink->errors.size() == 1 && side_3.second.rt_sink &&
-                side_3.second.rt_sink->errors.size() == 1,
+    REQUIRE(side_3.second.ct_sink && side_3.second.ct_sink->failures.size() == 1 && side_3.second.rt_sink &&
+                side_3.second.rt_sink->failures.size() == 1,
             "Test side_3 must fail");
 }
