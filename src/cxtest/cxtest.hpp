@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <format>
 #include <functional>
 #include <list>
@@ -13,6 +14,30 @@
 
 namespace cxtest
 {
+
+inline namespace annotations
+{
+
+namespace detail
+{
+
+struct TemplatedTestcase
+{
+    std::vector<std::meta::info> values;
+};
+
+} // namespace detail
+
+consteval detail::TemplatedTestcase templated(std::vector<std::meta::info> values)
+{
+    if (values.empty())
+    {
+        throw std::runtime_error{"Must contain at least one value"};
+    }
+    return detail::TemplatedTestcase{std::move(values)};
+}
+
+} // namespace annotations
 
 struct TestOutputSink
 {
@@ -276,6 +301,40 @@ constexpr void execute_test(auto&& test, TestOutputSink& sink)
     }
 }
 
+template<std::meta::info function>
+    requires(is_function(function))
+std::optional<Test> discover_test()
+{
+    detail::Test test;
+    if constexpr (std::is_invocable_v<decltype([:function:]), CTContext&>)
+    {
+        constexpr auto result = [&] consteval
+        {
+            CollectingTestOutputSink sink;
+            detail::execute_test<CTContext>([:function:], sink);
+            return std::define_static_array(sink.failures | std::views::transform(
+                                                                [](auto& string)
+                                                                {
+                                                                    return std::define_static_string(string);
+                                                                }));
+        }();
+        test.compiletime_failures = result;
+    }
+    if constexpr (std::is_invocable_v<decltype([:function:]), RTContext&>)
+    {
+        static constexpr detail::RuntimeTestImpl<([:function:])> runner{};
+        test.runtime_test = &runner;
+    }
+
+    if (test.compiletime_failures || test.runtime_test)
+    {
+        test.name = std::define_static_string(identifier_of(function));
+        return test;
+    }
+
+    return std::nullopt;
+}
+
 template<std::meta::info ns>
     requires(is_namespace(ns))
 std::vector<Test> discover_tests()
@@ -285,31 +344,49 @@ std::vector<Test> discover_tests()
     {
         if constexpr (is_function(info))
         {
-            detail::Test test;
-            if constexpr (std::is_invocable_v<decltype([:info:]), CTContext&>)
+            if (auto test = discover_test<info>())
             {
-                constexpr auto result = [&] consteval
-                {
-                    CollectingTestOutputSink sink;
-                    detail::execute_test<CTContext>([:info:], sink);
-                    return std::define_static_array(sink.failures | std::views::transform(
-                                                                        [](auto& string)
-                                                                        {
-                                                                            return std::define_static_string(string);
-                                                                        }));
-                }();
-                test.compiletime_failures = result;
+                tests.push_back(std::move(*test));
             }
-            if constexpr (std::is_invocable_v<decltype([:info:]), RTContext&>)
-            {
-                static constexpr detail::RuntimeTestImpl<([:info:])> runner{};
-                test.runtime_test = &runner;
-            }
+        }
+        else if constexpr (is_template(info))
+        {
+            /*
+            !!!!!!!!!
+            This is where the current plan breaks.
+            template<typename T> [[=5]] void f() {}
+            puts the annotation on the function, not the template.
+            So to see the annotation, we must instantiate f; f<bool> has the annotation, f does not.
+            */
+            constexpr auto templated_annotations =
+                annotations_of_with_type(info, ^^annotations::detail::TemplatedTestcase);
 
-            if (test.compiletime_failures || test.runtime_test)
+            if (!templated_annotations.empty())
             {
-                test.name = std::define_static_string(identifier_of(info));
-                tests.push_back(std::move(test));
+                static_assert(templated_annotations.size() == 1,
+                              "Templated test must have exactly one matching annotation");
+
+                const std::vector<std::meta::info>& values =
+                    extract<annotations::detail::TemplatedTestcase>(templated_annotations.front()).values;
+                for (auto& value : values)
+                {
+                    if (!can_substitute(info, {value}))
+                    {
+                        throw std::runtime_error{
+                            "Templated test can't be instantiated with one or more given arguments",
+                        };
+                    }
+
+                    auto test = discover_test<substitute(info, {value})>();
+                    if (!test)
+                    {
+                        throw std::runtime_error{
+                            "Templated test case doesn't yield a valid test function for one or more given arguments",
+                        };
+                    }
+
+                    tests.push_back(std::move(*test));
+                }
             }
         }
     }
