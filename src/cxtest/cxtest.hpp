@@ -14,6 +14,14 @@
 namespace cxtest
 {
 
+constexpr std::string_view version = [] consteval
+{
+    auto string = std::to_array<char>({
+#embed CXTEST_VERSION_FILE
+    });
+    return std::define_static_string(string);
+}();
+
 struct TestOutputSink
 {
     constexpr virtual ~TestOutputSink() = default;

@@ -17,6 +17,7 @@ if (HAS_FREFLECTION)
     target_compile_options(cxtest PUBLIC -freflection)
 endif()
 target_include_directories(cxtest PUBLIC src)
+target_compile_definitions(cxtest PUBLIC CXTEST_VERSION_FILE="${CMAKE_CURRENT_SOURCE_DIR}/VERSION")
 
 add_library(cxtest_main STATIC
     src/cxtest/cxtest_main.cpp
