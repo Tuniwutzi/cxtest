@@ -28,6 +28,6 @@ constexpr void error(cxtest::Context& ctx)
 
 } // namespace length
 
-auto _ = cxtest::register_tests_in_namespace_recursive<^^length>();
+const auto _ = cxtest::register_tests_in_namespace_recursive<^^length>();
 
 } // namespace

@@ -34,6 +34,6 @@ void test_rtti_name_of(cxtest::RTContext& ctx)
 
 } // namespace name_of
 
-auto _ = cxtest::register_tests_in_namespace_recursive<^^name_of>();
+const auto _ = cxtest::register_tests_in_namespace_recursive<^^name_of>();
 
 } // namespace
