@@ -14,11 +14,11 @@ TestOutputSink& PrintingRunOutputSink::start_test(std::string_view name, bool co
 {
     if (compiletime)
     {
-        std::cout << std::format("\tResults of test {} at compiletime...", name);
+        std::cout << std::format("\tCT execution of {}...", name);
     }
     else
     {
-        std::cout << std::format("\tExecuting test {} at runtime...", name);
+        std::cout << std::format("\tRT execution of {}...", name);
     }
     return *this;
 }
