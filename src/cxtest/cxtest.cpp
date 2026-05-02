@@ -62,9 +62,9 @@ std::string_view Group::get_name() const noexcept
     return name;
 }
 
-size_t Group::get_test_count() const noexcept
+const std::vector<Test>& Group::get_tests() const noexcept
 {
-    return tests.size();
+    return tests;
 }
 
 void Group::run(GroupOutputSink& sink) const noexcept
@@ -106,7 +106,7 @@ void run_registered_tests(RunOutputSink& sink) noexcept
     {
         for (const auto& group : groups)
         {
-            auto& group_sink = sink.start_group(group.get_name(), group.get_test_count());
+            auto& group_sink = sink.start_group(group.get_name(), group.get_tests().size());
             group.run(group_sink);
             group_sink.end_group();
         }

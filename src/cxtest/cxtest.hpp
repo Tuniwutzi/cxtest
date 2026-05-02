@@ -320,6 +320,11 @@ std::vector<Test> discover_tests()
                 tests.push_back(std::move(test));
             }
         }
+        else if (is_namespace(info) && !has_identifier(info))
+        {
+            // Anonymous namespace is treated as part of the same group
+            tests.append_range(discover_tests<info>());
+        }
     }
     return tests;
 }
@@ -330,7 +335,7 @@ public:
     Group(std::string_view name, std::vector<Test> tests);
 
     std::string_view get_name() const noexcept;
-    size_t get_test_count() const noexcept;
+    const std::vector<detail::Test>& get_tests() const noexcept;
 
     void run(GroupOutputSink& sink) const noexcept;
 
@@ -346,25 +351,27 @@ consteval std::string get_full_namespace(std::meta::info info)
         return ""; // global namespace, finish
     }
 
-    auto result = get_full_namespace(parent_of(info));
-    if (!result.empty())
-    {
-        result += "::";
-    }
+    auto parent = get_full_namespace(parent_of(info));
+    auto child = has_identifier(info) ? identifier_of(info) : std::string_view{};
 
-    if (has_identifier(info))
+    if (!parent.empty() && !child.empty())
     {
-        result += identifier_of(info);
+        parent += "::";
     }
-    else
-    {
-        result += "<anonymous>";
-    }
-    return result;
+    parent += child;
+    return parent;
+}
+
+namespace concepts
+{
+
+template<std::meta::info candidate>
+concept groupable_namespace = is_namespace(candidate) && has_identifier(candidate);
+
 }
 
 template<std::meta::info ns>
-    requires(is_namespace(ns))
+    requires(concepts::groupable_namespace<ns>)
 Group group_from_namespace()
 {
     auto tests = discover_tests<ns>();
@@ -396,9 +403,12 @@ template<std::meta::info ns>
 std::vector<Group> discover_groups_recursive()
 {
     std::vector<Group> groups{};
-    if (auto enclosing = group_from_namespace<ns>(); enclosing.get_test_count() > 0)
+    if constexpr (concepts::groupable_namespace<ns>)
     {
-        groups.push_back(std::move(enclosing));
+        if (auto enclosing = group_from_namespace<ns>(); !enclosing.get_tests().empty())
+        {
+            groups.push_back(std::move(enclosing));
+        }
     }
 
     template for (constexpr auto member :
@@ -418,7 +428,7 @@ std::vector<Group> discover_groups_recursive()
 struct Registration;
 
 template<std::meta::info ns>
-    requires(is_namespace(ns))
+    requires(detail::concepts::groupable_namespace<ns>)
 Registration register_tests_in_namespace_recursive();
 
 struct [[nodiscard]] Registration
@@ -431,7 +441,7 @@ struct [[nodiscard]] Registration
     Registration& operator=(Registration&&) = delete;
 
     template<std::meta::info ns>
-        requires(is_namespace(ns))
+        requires(detail::concepts::groupable_namespace<ns>)
     friend Registration register_tests_in_namespace_recursive();
 
 private:
@@ -440,7 +450,7 @@ private:
 };
 
 template<std::meta::info ns>
-    requires(is_namespace(ns))
+    requires(detail::concepts::groupable_namespace<ns>)
 Registration register_tests_in_namespace_recursive()
 {
     auto groups = detail::discover_groups_recursive<ns>();

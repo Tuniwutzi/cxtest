@@ -28,7 +28,7 @@ namespace invalid
 void test_invalid()
 {
     auto invalid_group = cxtest::detail::group_from_namespace<^^invalid>();
-    REQUIRE(invalid_group.get_test_count() == 0,
+    REQUIRE(invalid_group.get_tests().empty(),
             "There should not be tests in the invalid group, uncommenting them should cause compiler errors");
 }
 
