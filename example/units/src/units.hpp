@@ -205,11 +205,6 @@ struct Rational
 
     constexpr void normalize()
     {
-        if (den == 0)
-        {
-            throw std::runtime_error{"Rational has denominator 0"};
-        }
-
         if (num == 0)
         {
             den = 1;
