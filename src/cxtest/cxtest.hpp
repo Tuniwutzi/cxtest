@@ -284,6 +284,40 @@ constexpr void execute_test(auto&& test, TestOutputSink& sink)
     }
 }
 
+template<std::meta::info info>
+    requires(is_function(info))
+std::optional<Test> test_from_function()
+{
+    detail::Test test;
+    if constexpr (std::is_invocable_v<decltype([:info:]), CTContext&>)
+    {
+        constexpr auto result = [&] consteval
+        {
+            CollectingTestOutputSink sink;
+            detail::execute_test<CTContext>([:info:], sink);
+            return std::define_static_array(sink.failures | std::views::transform(
+                                                                [](auto& string)
+                                                                {
+                                                                    return std::define_static_string(string);
+                                                                }));
+        }();
+        test.compiletime_failures = result;
+    }
+    if constexpr (std::is_invocable_v<decltype([:info:]), RTContext&>)
+    {
+        static constexpr detail::RuntimeTestImpl<([:info:])> runner{};
+        test.runtime_test = &runner;
+    }
+
+    if (test.compiletime_failures || test.runtime_test)
+    {
+        test.name = std::define_static_string(identifier_of(info));
+        return test;
+    }
+
+    return std::nullopt;
+}
+
 template<std::meta::info ns>
     requires(is_namespace(ns))
 std::vector<Test> discover_tests()
@@ -293,31 +327,9 @@ std::vector<Test> discover_tests()
     {
         if constexpr (is_function(info))
         {
-            detail::Test test;
-            if constexpr (std::is_invocable_v<decltype([:info:]), CTContext&>)
+            if (auto test = test_from_function<info>())
             {
-                constexpr auto result = [&] consteval
-                {
-                    CollectingTestOutputSink sink;
-                    detail::execute_test<CTContext>([:info:], sink);
-                    return std::define_static_array(sink.failures | std::views::transform(
-                                                                        [](auto& string)
-                                                                        {
-                                                                            return std::define_static_string(string);
-                                                                        }));
-                }();
-                test.compiletime_failures = result;
-            }
-            if constexpr (std::is_invocable_v<decltype([:info:]), RTContext&>)
-            {
-                static constexpr detail::RuntimeTestImpl<([:info:])> runner{};
-                test.runtime_test = &runner;
-            }
-
-            if (test.compiletime_failures || test.runtime_test)
-            {
-                test.name = std::define_static_string(identifier_of(info));
-                tests.push_back(std::move(test));
+                tests.push_back(std::move(*test));
             }
         }
         else if constexpr (is_namespace(info) && !has_identifier(info))
