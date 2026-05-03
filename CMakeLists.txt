@@ -32,6 +32,7 @@ add_executable(cxtest_tests
     test/multi_tu_main.cpp
     test/assertions.cpp
     test/groups.cpp
+    test/templated.cpp
 )
 target_link_libraries(cxtest_tests PRIVATE cxtest)
 endif()

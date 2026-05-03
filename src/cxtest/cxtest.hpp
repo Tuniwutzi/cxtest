@@ -14,6 +14,48 @@
 namespace cxtest
 {
 
+inline namespace annotations
+{
+
+namespace detail
+{
+
+template<size_t n>
+struct TemplatedTestcase
+{
+    std::array<std::meta::info, n> values;
+};
+template<auto templated_testcase>
+constexpr std::span<const std::meta::info> extract_templated_values()
+{
+    return templated_testcase.values;
+}
+
+} // namespace detail
+
+template<typename... Values>
+consteval auto templated(Values... values)
+{
+    if (sizeof...(values) == 0)
+    {
+        throw std::runtime_error{"Must contain at least one value"};
+    }
+    auto make_info = []<typename T>(T value)
+    {
+        if constexpr (std::same_as<std::meta::info, T>)
+        {
+            return value;
+        }
+        else
+        {
+            return std::meta::reflect_constant(value);
+        }
+    };
+    return detail::TemplatedTestcase<sizeof...(values)>{{make_info(std::move(values))...}};
+}
+
+} // namespace annotations
+
 constexpr std::string_view version = [] consteval
 {
     auto string = std::to_array<char>({
@@ -284,6 +326,86 @@ constexpr void execute_test(auto&& test, TestOutputSink& sink)
     }
 }
 
+consteval std::vector<std::meta::info> get_template_values(std::meta::info scope)
+{
+    std::vector<std::meta::info> values;
+
+    auto annotations = annotations_of(scope) |
+                       std::views::filter(
+                           [](auto& annotation)
+                           {
+                               return has_template_arguments(type_of(annotation)) &&
+                                      template_of(type_of(annotation)) == ^^annotations::detail::TemplatedTestcase;
+                           }) |
+                       std::ranges::to<std::vector>();
+    if (annotations.size() > 1)
+    {
+        throw std::meta::exception{
+            "More than one templated attribute found on given scope",
+            scope,
+        };
+    }
+
+    if (!annotations.empty())
+    {
+        auto function = extract<std::span<const std::meta::info> (*)()>(
+            substitute(^^annotations::detail::extract_templated_values, {constant_of(annotations.front())}));
+        values.append_range(function());
+    }
+
+    if (has_parent(scope))
+    {
+        auto parent_values = get_template_values(parent_of(scope));
+        if (!values.empty() && !parent_values.empty())
+        {
+            throw std::meta::exception{
+                "Ambiguous templated values found, annotation is present multiple times in namespace hierarchy",
+                scope,
+            };
+        }
+        values.append_range(std::move(parent_values));
+    }
+
+    return values;
+}
+
+consteval std::string make_test_name(std::meta::info test)
+{
+    if (has_identifier(test))
+    {
+        return std::string{identifier_of(test)};
+    }
+    else if (has_template_arguments(test))
+    {
+        auto tmpl = template_of(test);
+        if (!has_identifier(tmpl))
+        {
+            throw std::meta::exception{
+                "Cannot construct name for a test function whose template has no identifier",
+                test,
+            };
+        }
+
+        std::string name{identifier_of(tmpl)};
+        name += "<";
+        for (auto& arg : template_arguments_of(test))
+        {
+            name += display_string_of(arg);
+            name += ", ";
+        }
+        name.resize(name.size() - 1);
+        name.back() = '>';
+        return name;
+    }
+    else
+    {
+        throw std::meta::exception{
+            "Cannot construct name for a test function that has no identifier and is not a templated function",
+            test,
+        };
+    }
+}
+
 template<std::meta::info info>
     requires(is_function(info))
 std::optional<Test> test_from_function()
@@ -311,7 +433,7 @@ std::optional<Test> test_from_function()
 
     if (test.compiletime_failures || test.runtime_test)
     {
-        test.name = std::define_static_string(identifier_of(info));
+        test.name = std::define_static_string(make_test_name(info));
         return test;
     }
 
@@ -330,6 +452,28 @@ std::vector<Test> discover_tests()
             if (auto test = test_from_function<info>())
             {
                 tests.push_back(std::move(*test));
+            }
+        }
+        else if constexpr (is_function_template(info))
+        {
+            static constexpr auto templated_values = std::define_static_array(get_template_values(parent_of(info)));
+            static_assert(!templated_values.empty(), "Found templated test function without matching annotation");
+
+            template for (constexpr auto& value : templated_values)
+            {
+                if (!can_substitute(info, {value}))
+                {
+                    throw std::runtime_error{
+                        std::format("Cannot substitute into test template: {}<{}>() is invalid",
+                                    display_string_of(info),
+                                    display_string_of(value)),
+                    };
+                }
+
+                if (auto test = test_from_function<substitute(info, {value})>())
+                {
+                    tests.push_back(std::move(*test));
+                }
             }
         }
     }
