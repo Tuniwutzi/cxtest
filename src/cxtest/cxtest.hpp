@@ -320,7 +320,7 @@ std::vector<Test> discover_tests()
                 tests.push_back(std::move(test));
             }
         }
-        else if (is_namespace(info) && !has_identifier(info))
+        else if constexpr (is_namespace(info) && !has_identifier(info))
         {
             // Anonymous namespace is treated as part of the same group
             tests.append_range(discover_tests<info>());
