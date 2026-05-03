@@ -332,11 +332,6 @@ std::vector<Test> discover_tests()
                 tests.push_back(std::move(*test));
             }
         }
-        else if constexpr (is_namespace(info) && !has_identifier(info))
-        {
-            // Anonymous namespace is treated as part of the same group
-            tests.append_range(discover_tests<info>());
-        }
     }
     return tests;
 }
@@ -414,6 +409,13 @@ template<std::meta::info ns>
     requires(is_namespace(ns))
 std::vector<Group> discover_groups_recursive()
 {
+    if constexpr (!has_identifier(ns))
+    {
+        throw std::runtime_error{
+            "Anonymous namespaces are not allowed within a test group namespace",
+        };
+    }
+
     std::vector<Group> groups{};
     if constexpr (concepts::groupable_namespace<ns>)
     {
