@@ -1,5 +1,3 @@
-/// This file tests grouping of discovered tests
-
 #include <cxtest/cxtest.hpp>
 
 #include "check.hpp"
