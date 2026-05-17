@@ -440,11 +440,45 @@ std::optional<Test> test_from_function()
     return std::nullopt;
 }
 
+// WIP: make template test errors less aggressive by only erroring if at least one templated value can be substituted
+// and yields a valid test function. See PR description for context.
+template<std::meta::info tmpl>
+    requires(is_function_template(tmpl))
+std::vector<Test> tests_from_template(std::span<const std::meta::info> templated_values)
+{
+
+    std::vector<std::meta::info> unsubstitutible{};
+    template for (constexpr auto& value : templated_values)
+    {
+        if (can_substitute(info, {value}))
+        {
+            if (auto test = test_from_function<substitute(info, {value})>())
+            {
+                instances.push_back(std::move(*test));
+            }
+            else
+            {
+            }
+        }
+    }
+
+    if (!instances.empty() && instances.size() != templated_values.size())
+    {
+        throw std::runtime_error{
+            std::format("Cannot substitute into test template: {}<{}>() is invalid",
+                        display_string_of(info),
+                        display_string_of(value)),
+        };
+    }
+}
+
 template<std::meta::info ns>
     requires(is_namespace(ns))
 std::vector<Test> discover_tests()
 {
     std::vector<Test> tests;
+
+    static constexpr auto templated_values = std::define_static_array(get_template_values(ns));
     template for (constexpr auto info : std::define_static_array(members_of(ns, std::meta::access_context::current())))
     {
         if constexpr (is_function(info))
@@ -454,27 +488,10 @@ std::vector<Test> discover_tests()
                 tests.push_back(std::move(*test));
             }
         }
-        else if constexpr (is_function_template(info))
+        else if constexpr (!templated_values.empty() && is_function_template(info))
         {
-            static constexpr auto templated_values = std::define_static_array(get_template_values(parent_of(info)));
-            static_assert(!templated_values.empty(), "Found templated test function without matching annotation");
 
-            template for (constexpr auto& value : templated_values)
-            {
-                if (!can_substitute(info, {value}))
-                {
-                    throw std::runtime_error{
-                        std::format("Cannot substitute into test template: {}<{}>() is invalid",
-                                    display_string_of(info),
-                                    display_string_of(value)),
-                    };
-                }
-
-                if (auto test = test_from_function<substitute(info, {value})>())
-                {
-                    tests.push_back(std::move(*test));
-                }
-            }
+            tests.add_range(std::move(instances));
         }
     }
     return tests;
