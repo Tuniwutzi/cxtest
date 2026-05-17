@@ -1,5 +1,3 @@
-/// This file tests execution of specific tests at runtime, compiletime or both.
-
 #include <cxtest/cxtest.hpp>
 
 #include "check.hpp"
