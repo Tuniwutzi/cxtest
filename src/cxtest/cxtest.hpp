@@ -239,36 +239,20 @@ public:
 namespace detail
 {
 
-struct RuntimeTest
-{
-public:
-    virtual ~RuntimeTest() = default;
-    virtual void operator()(RTContext& context) const = 0;
-};
-
-template<auto function>
-struct RuntimeTestImpl : RuntimeTest
-{
-    void operator()(RTContext& context) const override
-    {
-        function(context);
-    }
-};
-
 struct Test
 {
     const char* name;
     std::optional<std::span<const char* const>> compiletime_failures = {};
-    const RuntimeTest* runtime_test = nullptr;
+    void (*runtime_test)(TestOutputSink&) = nullptr;
 };
 
-template<typename Context>
-constexpr void execute_test(auto&& test, TestOutputSink& sink)
+template<typename Context, std::meta::info test>
+constexpr void execute_test(TestOutputSink& sink)
 {
     Context context{sink};
     try
     {
-        test(context);
+        [:test:](context);
     }
     catch (const detail::RequireFailed&)
     {
@@ -293,7 +277,7 @@ std::optional<Test> test_from_function()
         constexpr auto result = [&] consteval
         {
             CollectingTestOutputSink sink;
-            detail::execute_test<CTContext>([:info:], sink);
+            detail::execute_test<CTContext, info>(sink);
             return std::define_static_array(sink.failures | std::views::transform(
                                                                 [](auto& string)
                                                                 {
@@ -304,8 +288,7 @@ std::optional<Test> test_from_function()
     }
     if constexpr (std::is_invocable_v<decltype([:info:]), RTContext&>)
     {
-        static constexpr detail::RuntimeTestImpl<([:info:])> runner{};
-        test.runtime_test = &runner;
+        test.runtime_test = execute_test<RTContext, info>;
     }
 
     if (test.compiletime_failures || test.runtime_test)

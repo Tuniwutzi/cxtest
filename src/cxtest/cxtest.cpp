@@ -83,7 +83,7 @@ void Group::run(GroupOutputSink& sink) const noexcept
         if (test.runtime_test)
         {
             auto& test_sink = sink.start_test(test.name, false);
-            detail::execute_test<RTContext>(*test.runtime_test, test_sink);
+            test.runtime_test(test_sink);
             test_sink.end_test();
         }
     }
