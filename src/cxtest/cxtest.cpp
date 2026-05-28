@@ -49,7 +49,14 @@ RTContext::RTContext(TestOutputSink& sink)
 namespace detail
 {
 
-std::list<std::vector<Group>> registrations{};
+namespace
+{
+std::list<std::vector<Group>>& get_registrations()
+{
+    static std::list<std::vector<Group>> list{};
+    return list;
+}
+} // namespace
 
 Group::Group(std::string_view name, std::vector<Test> tests)
     : name{std::move(name)}
@@ -92,17 +99,17 @@ void Group::run(GroupOutputSink& sink) const noexcept
 } // namespace detail
 
 Registration::Registration(std::vector<detail::Group>&& groups)
-    : position(detail::registrations.insert(detail::registrations.end(), std::move(groups)))
+    : position(detail::get_registrations().insert(detail::get_registrations().end(), std::move(groups)))
 {
 }
 Registration::~Registration()
 {
-    detail::registrations.erase(position);
+    detail::get_registrations().erase(position);
 }
 
 void run_registered_tests(RunOutputSink& sink) noexcept
 {
-    for (const auto& groups : detail::registrations)
+    for (const auto& groups : detail::get_registrations())
     {
         for (const auto& group : groups)
         {
