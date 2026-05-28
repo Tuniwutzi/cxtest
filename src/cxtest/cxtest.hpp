@@ -8,6 +8,7 @@
 #include <source_location>
 #include <stdexcept>
 #include <string>
+#include <type_traits>
 #include <unordered_map>
 #include <vector>
 
@@ -21,6 +22,19 @@ constexpr std::string_view version = [] consteval
     });
     return std::define_static_string(string);
 }();
+
+inline namespace annotations
+{
+
+consteval auto test_group()
+{
+    struct TestGroupAnnotation
+    {
+    };
+    return TestGroupAnnotation{};
+}
+
+} // namespace annotations
 
 struct TestOutputSink
 {
@@ -270,10 +284,15 @@ constexpr void execute_test(TestOutputSink& sink)
 
 template<std::meta::info info>
     requires(is_function(info))
-std::optional<Test> test_from_function()
+Test test_from_function()
 {
     detail::Test test;
-    if constexpr (std::is_invocable_v<decltype([:info:]), CTContext&>)
+    constexpr bool ct = std::is_invocable_v<decltype([:info:]), CTContext&>;
+    constexpr bool rt = std::is_invocable_v<decltype([:info:]), RTContext&>;
+
+    static_assert(rt || ct, "Encountered a test function that is not callable at runtime or compile time");
+
+    if constexpr (ct)
     {
         constexpr auto result = [&] consteval
         {
@@ -287,36 +306,13 @@ std::optional<Test> test_from_function()
         }();
         test.compiletime_failures = result;
     }
-    if constexpr (std::is_invocable_v<decltype([:info:]), RTContext&>)
+    if constexpr (rt)
     {
         test.runtime_test = execute_test<RTContext, info>;
     }
 
-    if (test.compiletime_failures || test.runtime_test)
-    {
-        test.name = std::define_static_string(identifier_of(info));
-        return test;
-    }
-
-    return std::nullopt;
-}
-
-template<std::meta::info ns>
-    requires(is_namespace(ns))
-std::vector<Test> discover_tests()
-{
-    std::vector<Test> tests;
-    template for (constexpr auto info : std::define_static_array(members_of(ns, std::meta::access_context::current())))
-    {
-        if constexpr (is_function(info))
-        {
-            if (auto test = test_from_function<info>())
-            {
-                tests.push_back(std::move(*test));
-            }
-        }
-    }
-    return tests;
+    test.name = std::define_static_string(identifier_of(info));
+    return test;
 }
 
 class [[nodiscard]] Group
@@ -352,34 +348,170 @@ consteval std::string get_full_namespace(std::meta::info info)
     return parent;
 }
 
-namespace concepts
+template<size_t n>
+consteval std::meta::info make_array_constant(std::span<const std::meta::info> range)
 {
-
-template<std::meta::info candidate>
-concept groupable_namespace = is_namespace(candidate) && has_identifier(candidate);
-
+    if (range.size() != n)
+    {
+        throw std::runtime_error{"Range does not have expected size"};
+    }
+    std::array<std::meta::info, n> arr;
+    std::ranges::move(range, arr.begin());
+    return std::meta::reflect_constant(arr);
+}
+template<size_t n, std::meta::info info>
+consteval std::vector<std::meta::info> extract_array_constant()
+{
+    auto arr = extract<std::array<std::meta::info, n>>(info);
+    return {std::from_range, arr};
 }
 
-template<std::meta::info ns>
-    requires(concepts::groupable_namespace<ns>)
-Group group_from_namespace()
+struct DiscoveredGroup
 {
-    auto tests = discover_tests<ns>();
+    const std::meta::info ns;
 
-    static constexpr std::string_view group_name = std::define_static_string(get_full_namespace(ns));
+    const std::meta::info tests;
+    const size_t test_count;
 
-    size_t drop = 0;
-    for (const detail::Test& test : tests)
+    consteval std::vector<std::meta::info> get_tests() const
     {
-        drop++;
-        for (const detail::Test& existing : tests | std::views::drop(drop))
+        auto extract_refl = substitute(^^extract_array_constant,
+                                       {std::meta::reflect_constant(test_count), std::meta::reflect_constant(tests)});
+        auto extract_fn = extract<std::vector<std::meta::info> (*)()>(extract_refl);
+        return extract_fn();
+    }
+};
+consteval bool is_test(std::meta::info test)
+{
+    if (!is_function(test))
+    {
+        return false;
+    }
+
+    if (!is_invocable_r_type(^^void, type_of(test), {^^RTContext& }) &&
+        !is_invocable_r_type(^^void, type_of(test), {^^CTContext& }))
+    {
+        return false;
+    }
+
+    return true;
+}
+consteval bool is_test_group(std::meta::info ns)
+{
+    auto annotations = annotations_of_with_type(ns, return_type_of(^^annotations::test_group));
+
+    if (annotations.size() > 1)
+    {
+        throw std::meta::exception{
+            "Namespace has more than one test_group annotation",
+            ns,
+        };
+    }
+
+    return !annotations.empty();
+}
+
+consteval std::pair<std::optional<DiscoveredGroup>, std::vector<std::meta::info>>
+discover_group_namespace(std::meta::info ns)
+{
+    bool group = is_test_group(ns);
+    if (!has_identifier(ns))
+    {
+        if (group)
         {
-            if (test.name == existing.name)
-            {
-                throw std::runtime_error{
-                    std::format("Test with name {} exists multiple times in group {}", test.name, group_name)};
-            }
+            throw std::meta::exception{
+                "A test group cannot be anonymous",
+                ns,
+            };
         }
+
+        return {{}, {}};
+    }
+
+    std::vector<std::meta::info> tests{};
+    std::vector<std::meta::info> subgroups{};
+
+    // Current rule: every member of a test group namespace must be...
+    // ... a test
+    // ... an anonymous namespace which will be ignored
+    // ... or another test_group namespace.
+    for (auto member : members_of(ns, std::meta::access_context::current()))
+    {
+        if (is_namespace(member))
+        {
+            if (!has_identifier(member))
+            {
+                continue;
+            }
+
+            if (group && !is_test_group(member))
+            {
+                throw std::meta::exception{
+                    "Test group has namespace member that is neither anonymous nor a test group",
+                    ns,
+                };
+            }
+
+            subgroups.push_back(member);
+        }
+        else if (is_test(member))
+        {
+            tests.push_back(member);
+        }
+        else if (group)
+        {
+            throw std::meta::exception{
+                std::string{"Test group has member that is neither a test nor a namespace"} + display_string_of(member),
+                ns,
+            };
+        }
+    }
+
+    if (group)
+    {
+        if (tests.empty())
+        {
+            throw std::meta::exception{
+                "Test group contains no tests",
+                ns,
+            };
+        }
+
+        auto make_array_refl = substitute(^^make_array_constant, {std::meta::reflect_constant(tests.size())});
+        auto make_array = extract<std::meta::info (*)(std::span<const std::meta::info>)>(make_array_refl);
+
+        DiscoveredGroup group{
+            .ns = ns,
+            .tests = make_array(tests),
+            .test_count = tests.size(),
+        };
+        return {std::move(group), std::move(subgroups)};
+    }
+    return {{}, std::move(subgroups)};
+}
+
+consteval void discover_groups_recursive(std::meta::info ns, std::vector<DiscoveredGroup>& groups)
+{
+    auto [group, subgroups] = discover_group_namespace(ns);
+    if (group)
+    {
+        groups.push_back(std::move(*group));
+    }
+    for (auto subgroup : subgroups)
+    {
+        discover_groups_recursive(subgroup, groups);
+    }
+}
+
+template<DiscoveredGroup discovered_group>
+Group instantiate_group()
+{
+    static constexpr std::string_view group_name = std::define_static_string(get_full_namespace(discovered_group.ns));
+
+    std::vector<Test> tests{};
+    template for (constexpr std::meta::info test : std::define_static_array(discovered_group.get_tests()))
+    {
+        tests.push_back(test_from_function<test>());
     }
 
     return Group{
@@ -388,45 +520,7 @@ Group group_from_namespace()
     };
 }
 
-template<std::meta::info ns>
-    requires(is_namespace(ns))
-std::vector<Group> discover_groups_recursive()
-{
-    if constexpr (!has_identifier(ns))
-    {
-        throw std::runtime_error{
-            "Anonymous namespaces are not allowed within a test group namespace",
-        };
-    }
-
-    std::vector<Group> groups{};
-    if constexpr (concepts::groupable_namespace<ns>)
-    {
-        if (auto enclosing = group_from_namespace<ns>(); !enclosing.get_tests().empty())
-        {
-            groups.push_back(std::move(enclosing));
-        }
-    }
-
-    template for (constexpr auto member :
-                  std::define_static_array(members_of(ns, std::meta::access_context::current())))
-    {
-        if constexpr (is_namespace(member))
-        {
-            groups.append_range(discover_groups_recursive<member>());
-        }
-    }
-
-    return groups;
-}
-
 } // namespace detail
-
-struct Registration;
-
-template<std::meta::info ns>
-    requires(detail::concepts::groupable_namespace<ns>)
-Registration register_tests_in_namespace_recursive();
 
 struct [[nodiscard]] Registration
 {
@@ -437,26 +531,42 @@ struct [[nodiscard]] Registration
     Registration(Registration&&) = delete;
     Registration& operator=(Registration&&) = delete;
 
-    template<std::meta::info ns>
-        requires(detail::concepts::groupable_namespace<ns>)
-    friend Registration register_tests_in_namespace_recursive();
+    friend struct RegisterTestsFn;
 
 private:
     Registration(std::vector<detail::Group>&& groups);
     std::list<std::vector<detail::Group>>::const_iterator position;
 };
 
-template<std::meta::info ns>
-    requires(detail::concepts::groupable_namespace<ns>)
-Registration register_tests_in_namespace_recursive()
+const struct RegisterTestsFn
 {
-    auto groups = detail::discover_groups_recursive<ns>();
-    if (groups.empty())
+    template<std::meta::info ns = ^^::>
+    Registration operator()() const
     {
-        throw std::runtime_error{"Namespace does not contain any tests"};
+        std::vector<detail::Group> groups{};
+        template for (constexpr auto discovered_group : std::define_static_array(
+                          [] consteval
+                          {
+                              std::vector<detail::DiscoveredGroup> groups{};
+                              // auto nss = | std::ranges::to<std::vector>();
+                              // throw nss.size();
+                              for (auto member : members_of(ns, std::meta::access_context::current()) |
+                                                     std::views::filter(std::meta::is_namespace))
+                              {
+                                  detail::discover_groups_recursive(member, groups);
+                              }
+                              if (groups.empty())
+                              {
+                                  throw std::runtime_error{"Register tests found no test groups"};
+                              }
+                              return groups;
+                          }()))
+        {
+            groups.push_back(detail::instantiate_group<discovered_group>());
+        }
+        return {std::move(groups)};
     }
-    return Registration{std::move(groups)};
-}
+} register_tests;
 
 void run_registered_tests(RunOutputSink& sink) noexcept;
 

@@ -5,7 +5,7 @@
 namespace
 {
 
-namespace tests
+namespace[[= cxtest::test_group()]] tests
 {
 
 constexpr void check_rt(cxtest::Context& ctx)
@@ -95,7 +95,7 @@ constexpr void check_uncaught_unknown_type(cxtest::Context& ctx)
 
 void test_assertions()
 {
-    auto group = cxtest::detail::group_from_namespace<^^tests>();
+    auto group = discover_and_instantiate_group<^^tests>();
     cxtest::CollectingGroupOutputSink sink{};
     group.run(sink);
 

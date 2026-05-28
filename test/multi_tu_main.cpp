@@ -4,10 +4,7 @@
 
 #include <algorithm>
 
-namespace
-{
-
-namespace multi_tu_main
+namespace[[= cxtest::test_group()]] multi_tu_main
 {
 
 void main_1(cxtest::RTContext& ctx)
@@ -25,7 +22,10 @@ constexpr void main_3(cxtest::Context& ctx)
 
 } // namespace multi_tu_main
 
-cxtest::Registration group_registration = cxtest::register_tests_in_namespace_recursive<^^multi_tu_main>();
+namespace
+{
+
+auto _ = cxtest::register_tests();
 
 } // namespace
 

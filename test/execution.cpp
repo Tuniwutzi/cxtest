@@ -9,7 +9,7 @@
 namespace
 {
 
-namespace invalid
+namespace[[= cxtest::test_group()]] invalid
 {
 // These tests should fail compilation in ways we can't catch and diagnose
 
@@ -25,12 +25,22 @@ namespace invalid
 
 void test_invalid()
 {
-    auto invalid_group = cxtest::detail::group_from_namespace<^^invalid>();
-    REQUIRE(invalid_group.get_tests().empty(),
-            "There should not be tests in the invalid group, uncommenting them should cause compiler errors");
+    bool threw = [] consteval
+    {
+        try
+        {
+            cxtest::detail::discover_group_namespace(^^invalid);
+            return false;
+        }
+        catch (const std::meta::exception&)
+        {
+            return true;
+        }
+    }();
+    REQUIRE(threw, "Invalid group should throw");
 }
 
-namespace valid
+namespace[[= cxtest::test_group()]] valid
 {
 // Constexpr can request anything:
 constexpr void cx_both_1(cxtest::Context& ctx) {}
@@ -58,7 +68,7 @@ void rt_1(cxtest::RTContext& ctx)
 
 void test_valid()
 {
-    auto valid_group = cxtest::detail::group_from_namespace<^^valid>();
+    auto valid_group = discover_and_instantiate_group<^^valid>();
     cxtest::CollectingGroupOutputSink sink{};
     valid_group.run(sink);
     REQUIRE(sink.tests.size() == 5, "Unexpected number of tests ran");
