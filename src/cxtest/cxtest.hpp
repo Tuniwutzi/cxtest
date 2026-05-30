@@ -12,6 +12,13 @@
 #include <unordered_map>
 #include <vector>
 
+/**
+ * Issue: if I use ^^:: as basis for test discovery, gcc 16.1.1 complains about "use of built-in parameter pack
+ * '__integer_pack' outside of a template". Even though we're using it in a template. Only passing concrete namespaces
+ * seems to solve the issue. This is probably a compiler error that will be fixed sooner or later. Until then, the
+ * registration function will have to be called with explicit test namespaces that must not be ^^::.
+ */
+
 namespace cxtest
 {
 
@@ -359,26 +366,55 @@ consteval std::meta::info make_array_constant(std::span<const std::meta::info> r
     std::ranges::move(range, arr.begin());
     return std::meta::reflect_constant(arr);
 }
-template<size_t n, std::meta::info info>
-consteval std::vector<std::meta::info> extract_array_constant()
+
+template<size_t n>
+consteval std::vector<std::meta::info> extract_array_constant(std::meta::info array_constant)
 {
-    auto arr = extract<std::array<std::meta::info, n>>(info);
+    auto arr = extract<std::array<std::meta::info, n>>(array_constant);
     return {std::from_range, arr};
 }
 
+template<typename Element>
+struct StructuralList
+{
+    const size_t size;
+    const std::meta::info array;
+
+    consteval StructuralList(std::span<const Element> range)
+        : size{std::ranges::size(range)}
+        , array{
+              [&] consteval
+              {
+                  auto make_array_refl = substitute(^^make_array_constant, {std::meta::reflect_constant(range.size())});
+                  auto make_array = std::meta::extract<std::meta::info (*)(std::span<const Element>)>(make_array_refl);
+                  return make_array(std::forward<decltype(range)>(range));
+              }()}
+    {
+    }
+
+    consteval std::vector<Element> extract() const
+    {
+        auto extract_refl = substitute(^^extract_array_constant, {std::meta::reflect_constant(size)});
+        auto extract_fn = std::meta::extract<std::vector<Element> (*)(std::meta::info)>(extract_refl);
+        return extract_fn(array);
+    }
+};
+
 struct DiscoveredGroup
 {
-    const std::meta::info ns;
+    std::meta::info ns;
 
-    const std::meta::info tests;
-    const size_t test_count;
+    StructuralList<std::meta::info> tests;
+
+    consteval DiscoveredGroup(std::meta::info ns, std::span<const std::meta::info> tests)
+        : ns(ns)
+        , tests{tests}
+    {
+    }
 
     consteval std::vector<std::meta::info> get_tests() const
     {
-        auto extract_refl = substitute(^^extract_array_constant,
-                                       {std::meta::reflect_constant(test_count), std::meta::reflect_constant(tests)});
-        auto extract_fn = extract<std::vector<std::meta::info> (*)()>(extract_refl);
-        return extract_fn();
+        return tests.extract();
     }
 };
 consteval bool is_test(std::meta::info test)
@@ -414,18 +450,16 @@ consteval bool is_test_group(std::meta::info ns)
 consteval std::pair<std::optional<DiscoveredGroup>, std::vector<std::meta::info>>
 discover_group_namespace(std::meta::info ns)
 {
-    bool group = is_test_group(ns);
+    bool is_group = is_test_group(ns);
     if (!has_identifier(ns))
     {
-        if (group)
+        if (is_group)
         {
             throw std::meta::exception{
                 "A test group cannot be anonymous",
                 ns,
             };
         }
-
-        return {{}, {}};
     }
 
     std::vector<std::meta::info> tests{};
@@ -439,35 +473,26 @@ discover_group_namespace(std::meta::info ns)
     {
         if (is_namespace(member))
         {
-            if (!has_identifier(member))
+            subgroups.push_back(member);
+        }
+        else if (is_group)
+        {
+            if (is_test(member))
             {
-                continue;
+                tests.push_back(member);
             }
-
-            if (group && !is_test_group(member))
+            else
             {
                 throw std::meta::exception{
-                    "Test group has namespace member that is neither anonymous nor a test group",
+                    std::string{"Test group has member that is neither a test nor a namespace"} +
+                        display_string_of(member),
                     ns,
                 };
             }
-
-            subgroups.push_back(member);
-        }
-        else if (is_test(member))
-        {
-            tests.push_back(member);
-        }
-        else if (group)
-        {
-            throw std::meta::exception{
-                std::string{"Test group has member that is neither a test nor a namespace"} + display_string_of(member),
-                ns,
-            };
         }
     }
 
-    if (group)
+    if (is_group)
     {
         if (tests.empty())
         {
@@ -480,14 +505,10 @@ discover_group_namespace(std::meta::info ns)
         auto make_array_refl = substitute(^^make_array_constant, {std::meta::reflect_constant(tests.size())});
         auto make_array = extract<std::meta::info (*)(std::span<const std::meta::info>)>(make_array_refl);
 
-        DiscoveredGroup group{
-            .ns = ns,
-            .tests = make_array(tests),
-            .test_count = tests.size(),
-        };
+        DiscoveredGroup group(ns, tests);
         return {std::move(group), std::move(subgroups)};
     }
-    return {{}, std::move(subgroups)};
+    return {std::nullopt, std::move(subgroups)};
 }
 
 consteval void discover_groups_recursive(std::meta::info ns, std::vector<DiscoveredGroup>& groups)
@@ -495,7 +516,7 @@ consteval void discover_groups_recursive(std::meta::info ns, std::vector<Discove
     auto [group, subgroups] = discover_group_namespace(ns);
     if (group)
     {
-        groups.push_back(std::move(*group));
+        groups.push_back(std::move(group.value()));
     }
     for (auto subgroup : subgroups)
     {
@@ -520,7 +541,17 @@ Group instantiate_group()
     };
 }
 
+static consteval std::span<const detail::DiscoveredGroup> discover(std::meta::info ns)
+{
+    std::vector<detail::DiscoveredGroup> groups{};
+    detail::discover_groups_recursive(ns, groups);
+    return groups;
+}
+
 } // namespace detail
+
+template<detail::StructuralList<detail::DiscoveredGroup>>
+struct RegisterTestsFn;
 
 struct [[nodiscard]] Registration
 {
@@ -531,6 +562,7 @@ struct [[nodiscard]] Registration
     Registration(Registration&&) = delete;
     Registration& operator=(Registration&&) = delete;
 
+    template<detail::StructuralList<detail::DiscoveredGroup>>
     friend struct RegisterTestsFn;
 
 private:
@@ -538,35 +570,27 @@ private:
     std::list<std::vector<detail::Group>>::const_iterator position;
 };
 
-const struct RegisterTestsFn
+template<detail::StructuralList<detail::DiscoveredGroup> discovered>
+struct RegisterTestsFn
 {
-    template<std::meta::info ns = ^^::>
     Registration operator()() const
     {
         std::vector<detail::Group> groups{};
-        template for (constexpr auto discovered_group : std::define_static_array(
-                          [] consteval
-                          {
-                              std::vector<detail::DiscoveredGroup> groups{};
-                              // auto nss = | std::ranges::to<std::vector>();
-                              // throw nss.size();
-                              for (auto member : members_of(ns, std::meta::access_context::current()) |
-                                                     std::views::filter(std::meta::is_namespace))
-                              {
-                                  detail::discover_groups_recursive(member, groups);
-                              }
-                              if (groups.empty())
-                              {
-                                  throw std::runtime_error{"Register tests found no test groups"};
-                              }
-                              return groups;
-                          }()))
+        template for (constexpr std::meta::info discovered_group : discovered.extract())
         {
-            groups.push_back(detail::instantiate_group<discovered_group>());
+            groups.push_back(detail::instantiate_group<([:discovered_group:])>());
+        }
+        if (groups.empty())
+        {
+            throw std::runtime_error{"Register tests found no test groups"};
         }
         return {std::move(groups)};
     }
-} register_tests;
+};
+
+template<detail::StructuralList<detail::DiscoveredGroup> discovered =
+             detail::StructuralList<detail::DiscoveredGroup>{detail::discover(^^::)}>
+const RegisterTestsFn<discovered> register_tests;
 
 void run_registered_tests(RunOutputSink& sink) noexcept;
 

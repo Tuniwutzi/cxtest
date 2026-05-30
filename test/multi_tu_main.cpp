@@ -25,7 +25,7 @@ constexpr void main_3(cxtest::Context& ctx)
 namespace
 {
 
-auto _ = cxtest::register_tests();
+auto _ = cxtest::register_tests<^^multi_tu_main>();
 
 } // namespace
 
