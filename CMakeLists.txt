@@ -12,6 +12,7 @@ target_compile_features(cxtest PUBLIC cxx_std_26)
 # Future compilers will likely support reflection out of the box
 # Add the flag if supported, but try compiling in any case
 include(CheckCXXCompilerFlag)
+set(CMAKE_REQUIRED_FLAGS "-std=c++26")
 check_cxx_compiler_flag("-freflection" HAS_FREFLECTION)
 if (HAS_FREFLECTION)
     target_compile_options(cxtest PUBLIC -freflection)

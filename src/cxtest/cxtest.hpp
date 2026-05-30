@@ -4,6 +4,7 @@
 #include <functional>
 #include <list>
 #include <meta>
+#include <ranges>
 #include <source_location>
 #include <stdexcept>
 #include <string>
