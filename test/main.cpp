@@ -8,6 +8,7 @@ void test_execution();
 void test_multi_tu();
 void test_assertions();
 void test_groups();
+void test_templated();
 
 namespace
 {
@@ -49,6 +50,7 @@ int main()
         Test<^^test_multi_tu>{},
         Test<^^test_assertions>{},
         Test<^^test_groups>(),
+        Test<^^test_templated>(),
     };
     return execute(tests) ? 0 : 1;
 }
