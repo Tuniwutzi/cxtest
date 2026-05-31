@@ -1,5 +1,7 @@
 #pragma once
 
+#include "detail/Structural.hpp"
+
 #include <format>
 #include <functional>
 #include <list>
@@ -355,60 +357,15 @@ consteval std::string get_full_namespace(std::meta::info info)
     return parent;
 }
 
-template<size_t n>
-consteval std::meta::info make_array_constant(std::span<const std::meta::info> range)
-{
-    if (range.size() != n)
-    {
-        throw std::runtime_error{"Range does not have expected size"};
-    }
-    std::array<std::meta::info, n> arr;
-    std::ranges::move(range, arr.begin());
-    return std::meta::reflect_constant(arr);
-}
-
-template<size_t n>
-consteval std::vector<std::meta::info> extract_array_constant(std::meta::info array_constant)
-{
-    auto arr = extract<std::array<std::meta::info, n>>(array_constant);
-    return {std::from_range, arr};
-}
-
-template<typename Element>
-struct StructuralList
-{
-    const size_t size;
-    const std::meta::info array;
-
-    consteval StructuralList(std::span<const Element> range)
-        : size{std::ranges::size(range)}
-        , array{
-              [&] consteval
-              {
-                  auto make_array_refl = substitute(^^make_array_constant, {std::meta::reflect_constant(range.size())});
-                  auto make_array = std::meta::extract<std::meta::info (*)(std::span<const Element>)>(make_array_refl);
-                  return make_array(std::forward<decltype(range)>(range));
-              }()}
-    {
-    }
-
-    consteval std::vector<Element> extract() const
-    {
-        auto extract_refl = substitute(^^extract_array_constant, {std::meta::reflect_constant(size)});
-        auto extract_fn = std::meta::extract<std::vector<Element> (*)(std::meta::info)>(extract_refl);
-        return extract_fn(array);
-    }
-};
-
 struct DiscoveredGroup
 {
     std::meta::info ns;
 
-    StructuralList<std::meta::info> tests;
+    structural::List<std::meta::info> tests;
 
     consteval DiscoveredGroup(std::meta::info ns, std::span<const std::meta::info> tests)
         : ns(ns)
-        , tests{tests}
+        , tests{std::from_range, tests}
     {
     }
 
@@ -502,9 +459,6 @@ discover_group_namespace(std::meta::info ns)
             };
         }
 
-        auto make_array_refl = substitute(^^make_array_constant, {std::meta::reflect_constant(tests.size())});
-        auto make_array = extract<std::meta::info (*)(std::span<const std::meta::info>)>(make_array_refl);
-
         DiscoveredGroup group(ns, tests);
         return {std::move(group), std::move(subgroups)};
     }
@@ -550,7 +504,7 @@ static consteval std::span<const detail::DiscoveredGroup> discover(std::meta::in
 
 } // namespace detail
 
-template<detail::StructuralList<detail::DiscoveredGroup>>
+template<detail::structural::List<detail::DiscoveredGroup>>
 struct RegisterTestsFn;
 
 struct [[nodiscard]] Registration
@@ -562,7 +516,7 @@ struct [[nodiscard]] Registration
     Registration(Registration&&) = delete;
     Registration& operator=(Registration&&) = delete;
 
-    template<detail::StructuralList<detail::DiscoveredGroup>>
+    template<detail::structural::List<detail::DiscoveredGroup>>
     friend struct RegisterTestsFn;
 
 private:
@@ -570,7 +524,7 @@ private:
     std::list<std::vector<detail::Group>>::const_iterator position;
 };
 
-template<detail::StructuralList<detail::DiscoveredGroup> discovered>
+template<detail::structural::List<detail::DiscoveredGroup> discovered>
 struct RegisterTestsFn
 {
     Registration operator()() const
@@ -588,8 +542,8 @@ struct RegisterTestsFn
     }
 };
 
-template<detail::StructuralList<detail::DiscoveredGroup> discovered =
-             detail::StructuralList<detail::DiscoveredGroup>{detail::discover(^^::)}>
+template<detail::structural::List<detail::DiscoveredGroup> discovered =
+             detail::structural::List<detail::DiscoveredGroup>{detail::discover(^^::)}>
 const RegisterTestsFn<discovered> register_tests;
 
 void run_registered_tests(RunOutputSink& sink) noexcept;
