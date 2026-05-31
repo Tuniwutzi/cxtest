@@ -29,8 +29,8 @@ if (CXTEST_BUILD_TESTS)
 add_executable(cxtest_tests
     test/main.cpp
     test/execution.cpp
-    # test/multi_tu_side.cpp
-    # test/multi_tu_main.cpp
+    test/multi_tu_side.cpp
+    test/multi_tu_main.cpp
     test/assertions.cpp
     # test/groups.cpp
 )

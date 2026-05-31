@@ -23,6 +23,6 @@ constexpr void side_3(cxtest::Context& ctx)
 namespace
 {
 
-auto _ = cxtest::register_tests<>();
+auto _ = cxtest::register_tests_recursive<^^multi_tu_side>();
 
 } // namespace

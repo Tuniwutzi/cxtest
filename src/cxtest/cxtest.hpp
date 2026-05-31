@@ -495,17 +495,12 @@ Group instantiate_group()
     };
 }
 
-static consteval std::span<const detail::DiscoveredGroup> discover(std::meta::info ns)
-{
-    std::vector<detail::DiscoveredGroup> groups{};
-    detail::discover_groups_recursive(ns, groups);
-    return groups;
-}
-
 } // namespace detail
 
-template<detail::structural::List<detail::DiscoveredGroup>>
-struct RegisterTestsFn;
+struct Registration;
+template<std::meta::info... ns>
+    requires(sizeof...(ns) > 0 && ((is_namespace(ns) && ...)))
+Registration register_tests_recursive();
 
 struct [[nodiscard]] Registration
 {
@@ -516,35 +511,37 @@ struct [[nodiscard]] Registration
     Registration(Registration&&) = delete;
     Registration& operator=(Registration&&) = delete;
 
-    template<detail::structural::List<detail::DiscoveredGroup>>
-    friend struct RegisterTestsFn;
+    template<std::meta::info... ns>
+        requires(sizeof...(ns) > 0 && ((is_namespace(ns) && ...)))
+    friend Registration register_tests_recursive();
 
 private:
     Registration(std::vector<detail::Group>&& groups);
     std::list<std::vector<detail::Group>>::const_iterator position;
 };
 
-template<detail::structural::List<detail::DiscoveredGroup> discovered>
-struct RegisterTestsFn
+template<std::meta::info... ns>
+    requires(sizeof...(ns) > 0 && ((is_namespace(ns) && ...)))
+Registration register_tests_recursive()
 {
-    Registration operator()() const
+    static constexpr auto discovered_groups = [] consteval
     {
-        std::vector<detail::Group> groups{};
-        template for (constexpr std::meta::info discovered_group : discovered.extract())
-        {
-            groups.push_back(detail::instantiate_group<([:discovered_group:])>());
-        }
-        if (groups.empty())
-        {
-            throw std::runtime_error{"Register tests found no test groups"};
-        }
-        return {std::move(groups)};
-    }
-};
+        std::vector<detail::DiscoveredGroup> discovered_groups{};
+        ((detail::discover_groups_recursive(ns, discovered_groups)), ...);
+        return std::define_static_array(discovered_groups);
+    }();
 
-template<detail::structural::List<detail::DiscoveredGroup> discovered =
-             detail::structural::List<detail::DiscoveredGroup>{detail::discover(^^::)}>
-const RegisterTestsFn<discovered> register_tests;
+    std::vector<detail::Group> groups{};
+    template for (constexpr const detail::DiscoveredGroup& discovered_group : discovered_groups)
+    {
+        groups.push_back(detail::instantiate_group<discovered_group>());
+    }
+    if (groups.empty())
+    {
+        throw std::runtime_error{"Register tests found no test groups"};
+    }
+    return {std::move(groups)};
+}
 
 void run_registered_tests(RunOutputSink& sink) noexcept;
 

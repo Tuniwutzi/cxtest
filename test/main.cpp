@@ -46,7 +46,7 @@ int main()
 {
     std::tuple tests{
         Test<^^test_execution>{},
-        // Test<^^test_multi_tu>{},
+        Test<^^test_multi_tu>{},
         Test<^^test_assertions>{},
         // Test<^^test_groups>(),
     };
