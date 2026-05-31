@@ -78,19 +78,19 @@ void Group::run(GroupOutputSink& sink) const noexcept
 {
     for (const auto& test : tests)
     {
-        if (test.compiletime_failures)
+        if (test.get_ct_failures)
         {
             auto& test_sink = sink.start_test(test.name, true);
-            for (const auto& error : *test.compiletime_failures)
+            for (const auto& error : test.get_ct_failures())
             {
                 test_sink.record_failure(error);
             }
             test_sink.end_test();
         }
-        if (test.runtime_test)
+        if (test.execute_rt)
         {
             auto& test_sink = sink.start_test(test.name, false);
-            test.runtime_test(test_sink);
+            test.execute_rt(test_sink);
             test_sink.end_test();
         }
     }

@@ -14,13 +14,6 @@
 #include <unordered_map>
 #include <vector>
 
-/**
- * Issue: if I use ^^:: as basis for test discovery, gcc 16.1.1 complains about "use of built-in parameter pack
- * '__integer_pack' outside of a template". Even though we're using it in a template. Only passing concrete namespaces
- * seems to solve the issue. This is probably a compiler error that will be fixed sooner or later. Until then, the
- * registration function will have to be called with explicit test namespaces that must not be ^^::.
- */
-
 namespace cxtest
 {
 
@@ -266,8 +259,8 @@ namespace detail
 struct Test
 {
     const char* name;
-    std::optional<std::span<const char* const>> compiletime_failures = {};
-    void (*runtime_test)(TestOutputSink&) = nullptr;
+    std::span<const char* const> (*get_ct_failures)() = {};
+    void (*execute_rt)(TestOutputSink&) = nullptr;
 };
 
 template<typename Context, std::meta::info test>
@@ -289,39 +282,6 @@ constexpr void execute_test(TestOutputSink& sink)
     {
         sink.record_failure("Exception of unknown type escaped the test function");
     }
-}
-
-template<std::meta::info info>
-    requires(is_function(info))
-Test test_from_function()
-{
-    detail::Test test;
-    constexpr bool ct = std::is_invocable_v<decltype([:info:]), CTContext&>;
-    constexpr bool rt = std::is_invocable_v<decltype([:info:]), RTContext&>;
-
-    static_assert(rt || ct, "Encountered a test function that is not callable at runtime or compile time");
-
-    if constexpr (ct)
-    {
-        constexpr auto result = [&] consteval
-        {
-            CollectingTestOutputSink sink;
-            detail::execute_test<CTContext, info>(sink);
-            return std::define_static_array(sink.failures | std::views::transform(
-                                                                [](auto& string)
-                                                                {
-                                                                    return std::define_static_string(string);
-                                                                }));
-        }();
-        test.compiletime_failures = result;
-    }
-    if constexpr (rt)
-    {
-        test.runtime_test = execute_test<RTContext, info>;
-    }
-
-    test.name = std::define_static_string(identifier_of(info));
-    return test;
 }
 
 class [[nodiscard]] Group
@@ -359,37 +319,59 @@ consteval std::string get_full_namespace(std::meta::info info)
 
 struct DiscoveredGroup
 {
-    std::meta::info ns;
+    structural::String name;
 
-    structural::List<std::meta::info> tests;
-
-    consteval DiscoveredGroup(std::meta::info ns, std::span<const std::meta::info> tests)
-        : ns(ns)
-        , tests{std::from_range, tests}
+    struct Test
     {
-    }
+        structural::String name;
+        void (*rt)(TestOutputSink&);
+        std::meta::info ct{};
+    };
 
-    consteval std::vector<std::meta::info> get_tests() const
+    structural::List<Test> tests;
+
+    consteval std::vector<Test> get_tests() const
     {
         return tests.extract();
     }
 };
-consteval bool is_test(std::meta::info test)
+
+consteval DiscoveredGroup::Test discover_test(std::meta::info info)
 {
-    if (!is_function(test))
+    if (!is_function(info))
     {
-        return false;
+        throw std::meta::exception{
+            "Test is not a function",
+            info,
+        };
     }
 
-    if (!is_invocable_r_type(^^void, type_of(test), {^^RTContext& }) &&
-        !is_invocable_r_type(^^void, type_of(test), {^^CTContext& }))
+    DiscoveredGroup::Test test{
+        .name{identifier_of(info)},
+    };
+
+    if (is_invocable_r_type(^^void, type_of(info), {^^RTContext& }))
     {
-        return false;
+        test.rt = extract<void (*)(TestOutputSink&)>(
+            substitute(^^execute_test, {^^RTContext, std::meta::reflect_constant(info)}));
     }
 
-    return true;
+    if (is_invocable_r_type(^^void, type_of(info), {^^CTContext& }))
+    {
+        test.ct = substitute(^^execute_test, {^^CTContext, std::meta::reflect_constant(info)});
+    }
+
+    if (!test.rt && test.ct == std::meta::info{})
+    {
+        throw std::meta::exception{
+            "Test is neither executable it runtime nor compiletime",
+            info,
+        };
+    }
+
+    return test;
 }
-consteval bool is_test_group(std::meta::info ns)
+consteval std::optional<DiscoveredGroup> discover_group(std::meta::info ns)
 {
     auto annotations = annotations_of_with_type(ns, return_type_of(^^annotations::test_group));
 
@@ -401,16 +383,23 @@ consteval bool is_test_group(std::meta::info ns)
         };
     }
 
-    return !annotations.empty();
+    if (annotations.empty())
+    {
+        return std::nullopt;
+    }
+
+    return DiscoveredGroup{
+        .name{get_full_namespace(ns)},
+    };
 }
 
 consteval std::pair<std::optional<DiscoveredGroup>, std::vector<std::meta::info>>
 discover_group_namespace(std::meta::info ns)
 {
-    bool is_group = is_test_group(ns);
+    std::optional<DiscoveredGroup> group = discover_group(ns);
     if (!has_identifier(ns))
     {
-        if (is_group)
+        if (group)
         {
             throw std::meta::exception{
                 "A test group cannot be anonymous",
@@ -419,37 +408,22 @@ discover_group_namespace(std::meta::info ns)
         }
     }
 
-    std::vector<std::meta::info> tests{};
+    std::vector<DiscoveredGroup::Test> tests{};
     std::vector<std::meta::info> subgroups{};
 
-    // Current rule: every member of a test group namespace must be...
-    // ... a test
-    // ... an anonymous namespace which will be ignored
-    // ... or another test_group namespace.
     for (auto member : members_of(ns, std::meta::access_context::current()))
     {
         if (is_namespace(member))
         {
             subgroups.push_back(member);
         }
-        else if (is_group)
+        else if (group)
         {
-            if (is_test(member))
-            {
-                tests.push_back(member);
-            }
-            else
-            {
-                throw std::meta::exception{
-                    std::string{"Test group has member that is neither a test nor a namespace"} +
-                        display_string_of(member),
-                    ns,
-                };
-            }
+            tests.push_back(discover_test(member));
         }
     }
 
-    if (is_group)
+    if (group)
     {
         if (tests.empty())
         {
@@ -459,10 +433,9 @@ discover_group_namespace(std::meta::info ns)
             };
         }
 
-        DiscoveredGroup group(ns, tests);
-        return {std::move(group), std::move(subgroups)};
+        group->tests = {std::from_range, std::move(tests)};
     }
-    return {std::nullopt, std::move(subgroups)};
+    return {std::move(group), std::move(subgroups)};
 }
 
 consteval void discover_groups_recursive(std::meta::info ns, std::vector<DiscoveredGroup>& groups)
@@ -478,20 +451,45 @@ consteval void discover_groups_recursive(std::meta::info ns, std::vector<Discove
     }
 }
 
+template<void (*execute)(TestOutputSink&)>
+static std::span<const char* const> execute_ct()
+{
+    constexpr auto failures = [] consteval
+    {
+        CollectingTestOutputSink sink;
+        execute(sink);
+        return std::define_static_array(sink.failures | std::views::transform(
+                                                            [](const auto& string)
+                                                            {
+                                                                return std::define_static_string(string);
+                                                            }));
+    }();
+    return failures;
+}
+
+consteval Test instantiate_test(const DiscoveredGroup::Test& discovered_test)
+{
+    Test test{
+        .name = std::define_static_string(discovered_test.name.extract()),
+    };
+
+    test.execute_rt = discovered_test.rt;
+
+    if (discovered_test.ct != std::meta::info{})
+    {
+        test.get_ct_failures =
+            extract<std::span<const char* const> (*)()>(substitute(^^execute_ct, {discovered_test.ct}));
+    }
+    return test;
+}
+
 template<DiscoveredGroup discovered_group>
 Group instantiate_group()
 {
-    static constexpr std::string_view group_name = std::define_static_string(get_full_namespace(discovered_group.ns));
-
-    std::vector<Test> tests{};
-    template for (constexpr std::meta::info test : std::define_static_array(discovered_group.get_tests()))
-    {
-        tests.push_back(test_from_function<test>());
-    }
-
     return Group{
-        group_name,
-        std::move(tests),
+        std::define_static_string(discovered_group.name.extract()),
+        {std::from_range,
+         std::define_static_array(discovered_group.get_tests() | std::views::transform(instantiate_test))},
     };
 }
 
