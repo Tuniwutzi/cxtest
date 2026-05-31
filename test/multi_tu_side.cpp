@@ -2,7 +2,7 @@
 
 #include "check.hpp"
 
-namespace multi_tu_side
+namespace[[= cxtest::group()]] multi_tu_side
 {
 
 void side_1(cxtest::RTContext& ctx)
@@ -23,6 +23,6 @@ constexpr void side_3(cxtest::Context& ctx)
 namespace
 {
 
-auto registration = cxtest::register_tests_in_namespace_recursive<^^multi_tu_side>();
+auto _ = cxtest::register_tests_recursive<^^multi_tu_side>();
 
 } // namespace

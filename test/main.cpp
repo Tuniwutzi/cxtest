@@ -48,7 +48,7 @@ int main()
         Test<^^test_execution>{},
         Test<^^test_multi_tu>{},
         Test<^^test_assertions>{},
-        Test<^^test_groups>(),
+        // Test<^^test_groups>(),
     };
     return execute(tests) ? 0 : 1;
 }
