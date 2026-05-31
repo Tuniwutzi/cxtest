@@ -4,7 +4,7 @@
 
 #include <algorithm>
 
-namespace[[= cxtest::test_group()]] multi_tu_main
+namespace[[= cxtest::group()]] multi_tu_main
 {
 
 void main_1(cxtest::RTContext& ctx)

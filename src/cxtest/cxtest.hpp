@@ -28,7 +28,7 @@ constexpr std::string_view version = [] consteval
 inline namespace annotations
 {
 
-consteval auto test_group()
+consteval auto group()
 {
     struct TestGroupAnnotation
     {
@@ -373,12 +373,12 @@ consteval DiscoveredGroup::Test discover_test(std::meta::info info)
 }
 consteval std::optional<DiscoveredGroup> discover_group(std::meta::info ns)
 {
-    auto annotations = annotations_of_with_type(ns, return_type_of(^^annotations::test_group));
+    auto annotations = annotations_of_with_type(ns, return_type_of(^^annotations::group));
 
     if (annotations.size() > 1)
     {
         throw std::meta::exception{
-            "Namespace has more than one test_group annotation",
+            "Namespace has more than one group annotation",
             ns,
         };
     }

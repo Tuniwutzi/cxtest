@@ -2,7 +2,7 @@
 
 #include "check.hpp"
 
-namespace[[= cxtest::test_group()]] multi_tu_side
+namespace[[= cxtest::group()]] multi_tu_side
 {
 
 void side_1(cxtest::RTContext& ctx)

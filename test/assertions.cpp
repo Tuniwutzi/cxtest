@@ -5,7 +5,7 @@
 namespace
 {
 
-namespace[[= cxtest::test_group()]] tests
+namespace[[= cxtest::group()]] tests
 {
 
 constexpr void check_rt(cxtest::Context& ctx)

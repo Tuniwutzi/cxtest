@@ -9,7 +9,7 @@
 namespace
 {
 
-namespace[[= cxtest::test_group()]] invalid
+namespace[[= cxtest::group()]] invalid
 {
 // These tests should fail compilation in ways we can't catch and diagnose
 
@@ -40,7 +40,7 @@ void test_invalid()
     REQUIRE(threw, "Invalid group should throw");
 }
 
-namespace[[= cxtest::test_group()]] valid
+namespace[[= cxtest::group()]] valid
 {
 // Constexpr can request anything:
 constexpr void cx_both_1(cxtest::Context& ctx) {}
