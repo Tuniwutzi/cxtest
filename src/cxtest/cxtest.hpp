@@ -287,16 +287,16 @@ constexpr void execute_test(TestOutputSink& sink)
 class [[nodiscard]] Group
 {
 public:
-    Group(std::string_view name, std::vector<Test> tests);
+    Group(std::string_view name, std::span<const Test> tests);
 
     std::string_view get_name() const noexcept;
-    const std::vector<detail::Test>& get_tests() const noexcept;
+    std::span<const Test> get_tests() const noexcept;
 
     void run(GroupOutputSink& sink) const noexcept;
 
 private:
     std::string name;
-    std::vector<detail::Test> tests;
+    std::span<const Test> tests;
 };
 
 consteval std::string get_full_namespace(std::meta::info info)
@@ -488,8 +488,7 @@ Group instantiate_group()
 {
     return Group{
         std::define_static_string(discovered_group.name.extract()),
-        {std::from_range,
-         std::define_static_array(discovered_group.get_tests() | std::views::transform(instantiate_test))},
+        std::define_static_array(discovered_group.get_tests() | std::views::transform(instantiate_test)),
     };
 }
 

@@ -58,7 +58,7 @@ std::list<std::vector<Group>>& get_registrations()
 }
 } // namespace
 
-Group::Group(std::string_view name, std::vector<Test> tests)
+Group::Group(std::string_view name, std::span<const Test> tests)
     : name{std::move(name)}
     , tests{std::move(tests)}
 {
@@ -69,7 +69,7 @@ std::string_view Group::get_name() const noexcept
     return name;
 }
 
-const std::vector<Test>& Group::get_tests() const noexcept
+std::span<const Test> Group::get_tests() const noexcept
 {
     return tests;
 }
